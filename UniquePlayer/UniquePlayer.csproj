@@ -7,9 +7,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Mutagen.Bethesda" Version="0.23.3" />
-        <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.13.2" />
-        <PackageReference Include="Mutagen.Bethesda.FormKeys.SkyrimSE" Version="1.0.0"/>
+        <PackageReference Include="Mutagen.Bethesda" Version="0.26.3" />
+        <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.16.6" />
+        <PackageReference Include="Mutagen.Bethesda.FormKeys.SkyrimSE" Version="1.0.0" />
     </ItemGroup>
 
 </Project>
