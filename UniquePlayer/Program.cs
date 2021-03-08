@@ -1,21 +1,29 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Xml.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Mutagen.Bethesda;
+using Mutagen.Bethesda.FormKeys.SkyrimSE;
 using Mutagen.Bethesda.Skyrim;
 using Mutagen.Bethesda.Synthesis;
 using Noggog;
-using Mutagen.Bethesda.FormKeys.SkyrimSE;
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace UniquePlayer
 {
     public class Program
     {
         static Lazy<Settings> Settings = null!;
+
+        private static readonly Dictionary<string, string> BodyReferenceToBodyName = new()
+        {
+            { "CBBE Hands", "CBBE" },
+            { "CBBE Body", "CBBE" },
+            { "CBBE Feet", "CBBE" },
+            { "TBD - Reference - Default Body", "TBD" },
+        };
 
         public static async Task<int> Main(string[] args)
         {
@@ -102,19 +110,27 @@ namespace UniquePlayer
             ".nif"
         };
 
+        /// <returns>setA.Intersect(setB).Count</returns>
+        private static int CountIntersect<T>(ISet<T> setA, ISet<T> setB)
+        {
+            if (setA.Count > setB.Count)
+                return CountIntersect(setB, setA);
+            return setA.Count(setB.Contains);
+        }
+
         /// <summary>
         /// Edits a path to a mesh file using Skyrim's mesh path rules.
         /// </summary>
-        /// <param name="originalPath">The original mesh path.</param>
-        /// <param name="injectedPath">The path components to insert after the top-level directory.</param>
-        /// <returns></returns>
-        public static string MangleMeshesPath(string originalPath, string injectedPath)
+        /// <returns>$"Meshes/{injectedPath}/..."</returns>
+        /// <param name="testPath">$"{injectedPath}/..."</param>
+        public static string MangleMeshesPath(string originalPath, string injectedPath, out string testPath)
         {
             originalPath = originalPath.Replace('/', '\\');
-            var indexOfMeshes = originalPath.IndexOf("Meshes\\");
-            if (indexOfMeshes > 0)
-                originalPath = originalPath[indexOfMeshes..];
-            return $"Meshes\\{injectedPath}\\{originalPath}";
+            var indexOfMeshes = originalPath.IndexOf("Meshes\\", StringComparison.OrdinalIgnoreCase);
+            if (indexOfMeshes >= 0)
+                originalPath = originalPath[(indexOfMeshes + 7)..];
+            testPath = $"{injectedPath}\\{originalPath}";
+            return $"Meshes\\{testPath}";
         }
 
         public static void CopyAndModifyOutfitFiles(string dataPath)
@@ -143,8 +159,8 @@ namespace UniquePlayer
                 }
             }
 
-            var outfitsData =
-                from filePath in Directory.GetFiles(outfitsPath)//.AsParallel()
+            var outfitsData = (
+                from filePath in Directory.GetFiles(outfitsPath).AsParallel()
                 where filePath.EndsWith(".osp")
                   && !filePath.EndsWith(outfitOutputFileName)
                 where File.Exists(filePath)
@@ -153,7 +169,92 @@ namespace UniquePlayer
                 let sliderSets = doc.Element("SliderSetInfo")?.Elements("SliderSet")
                 where sliderSets is not null
                 from sliderSet in sliderSets
-                select sliderSet;
+                let name = sliderSet.GetAttribute("name")
+                where name is not null
+                group sliderSet by name
+            ).ToDictionary(x => x.Key, x => x.First());
+
+            var outfitsDoc = new XDocument(
+                new XDeclaration("1.0", "utf-8", "yes")
+            );
+            var sliderSetInfo = new XElement("SliderSetInfo", new XAttribute("version", "1"));
+            outfitsDoc.Add(sliderSetInfo);
+
+            Dictionary<string, HashSet<string>> uniquePlayerOutfits = new();
+
+            var bodyNameToSliderNameSets = new Dictionary<string, ImmutableHashSet<string>>();
+
+            foreach (var (outfitName, bodyName) in BodyReferenceToBodyName)
+            {
+                if (!outfitsData.TryGetValue(outfitName, out var outfitData)) continue;
+
+                bodyNameToSliderNameSets[bodyName] = outfitData
+                    .Elements("Slider")
+                    .Select(e => e.GetAttribute("name"))
+                    .NotNull()
+                    .ToImmutableHashSet();
+            }
+
+            var outfitNameToBodyName = new Dictionary<string, string>();
+
+            foreach (var (oldOutfitName, outfitData) in outfitsData)
+            {
+                var outfitPathElement = outfitData.Element("OutputPath");
+                if (outfitPathElement is null) continue;
+                outfitPathElement.Value = MangleMeshesPath(outfitPathElement.Value, "Player", out _);
+
+                if (!BodyReferenceToBodyName.TryGetValue(oldOutfitName, out var bodyName))
+                {
+                    var sliderNames = outfitData
+                        .Elements("Slider")
+                        .Select(e => e.GetAttribute("name"))
+                        .NotNull()
+                        .ToImmutableHashSet();
+
+                    var highestCount = 0;
+                    bodyName = "unknown";
+
+                    foreach (var (candidateBodyName, candidateSliderNames) in bodyNameToSliderNameSets)
+                    {
+                        var matchCount = CountIntersect(sliderNames, candidateSliderNames);
+
+                        if (matchCount > highestCount)
+                        {
+                            highestCount = matchCount;
+                            bodyName = candidateBodyName;
+                        }
+                    }
+                }
+
+                var hasSMP = outfitData
+                    .Elements("Shape")?
+                    .Select(x => x.GetAttribute("target"))
+                    .NotNull()
+                    .Any(x => x.StartsWith("Virtual")) == true;
+
+                var bodyNamePlusSMP = bodyName;
+
+                if (hasSMP)
+                    bodyNamePlusSMP += "-SMP";
+
+                outfitNameToBodyName[oldOutfitName] = bodyNamePlusSMP;
+
+                var newOutfitName = oldOutfitName;
+                if (!oldOutfitName.Contains(bodyName))
+                    newOutfitName += $" ({bodyName})";
+                if (hasSMP && !oldOutfitName.Contains("SMP"))
+                    newOutfitName += $" (SMP)";
+                newOutfitName += " (Unique Player)";
+
+                outfitData.Attribute("name")!.Value = newOutfitName;
+
+                sliderSetInfo.Add(outfitData);
+                oldToNewOutfitNames[oldOutfitName] = newOutfitName;
+
+                if (!uniquePlayerOutfits.TryGetValue(bodyNamePlusSMP, out var uniquePlayerOutfitsForBodyName))
+                    uniquePlayerOutfitsForBodyName = uniquePlayerOutfits[bodyNamePlusSMP] = new();
+                uniquePlayerOutfitsForBodyName.Add(newOutfitName);
+            }
 
             var outfitGroups =
                 from filePath in Directory.GetFiles(groupsPath)//.AsParallel()
@@ -165,55 +266,53 @@ namespace UniquePlayer
                 let outfitGroups2 = doc.Element("SliderGroups")?.Elements("Group")
                 where outfitGroups2 is not null
                 from outfitGroup in outfitGroups2
-                let outfitGroupName = outfitGroup.Attribute("name")?.Value
+                let outfitGroupName = outfitGroup.GetAttribute("name")
                 where outfitGroupName is not null
-                group outfitGroup by outfitGroupName;
-
-            var outfitsDoc = new XDocument(
-                new XDeclaration("1.0", "utf-8", "yes")
-            );
-            var sliderSetInfo = new XElement("SliderSetInfo", new XAttribute("version", "1"));
-            outfitsDoc.Add(sliderSetInfo);
+                from outfitGroupMember in outfitGroup.Elements("Member")
+                where outfitGroupMember is not null
+                let outfitName = outfitGroupMember.GetAttribute("name")
+                where outfitName is not null
+                join rec in outfitNameToBodyName // only includes existing outfit names
+                on outfitName equals rec.Key
+                let bodyName = rec.Value
+                let newOutfitName = oldToNewOutfitNames[outfitName]
+                group newOutfitName by (outfitGroupName, bodyName);
 
             var sliderGroupDoc = new XDocument();
             var sliderGroups = new XElement("SliderGroups");
             sliderGroupDoc.Add(sliderGroups);
-            var sliderGroup = new XElement("Group", new XAttribute("name", "Unique Player"));
-            sliderGroups.Add(sliderGroup);
 
-            foreach (var outfitData in outfitsData)
+            static XElement MakeSliderGroup(IEnumerable<string> outfitNames, string outfitGroupName)
             {
-                var outfitPathElement = outfitData.Element("OutputPath");
-                var outfitNameElement = outfitData.Element("name");
-                if (outfitPathElement is null || outfitNameElement is null) continue;
-                outfitPathElement.Value = MangleMeshesPath(outfitPathElement.Value, "Player");
-                var oldOutfitName = outfitNameElement.Value;
-                var newOutfitName = oldOutfitName + " (Unique Player)";
-                outfitNameElement.Value = newOutfitName;
-                sliderSetInfo.Add(outfitData);
-                sliderGroup.Add(new XElement("Member", new XAttribute("name", newOutfitName)));
-                oldToNewOutfitNames.Add(oldOutfitName, newOutfitName);
-            }
+                var sliderGroup = new XElement("Group", new XAttribute("name", outfitGroupName));
 
-            // attempt to coalesce the same groups defined in multiple files.
-            foreach (var outfitGroupGroup in outfitGroups)
-            {
-                var combinedOutfitGroup = outfitGroupGroup.First();
-                var combinedOutfitGroupNameAttribute = combinedOutfitGroup.Attribute("name");
-                if (combinedOutfitGroupNameAttribute is null) continue;
-                combinedOutfitGroupNameAttribute.Value = outfitGroupGroup.Key + " (Unique Player)";
-                foreach (var outfitGroup in outfitGroupGroup.Skip(1))
-                    combinedOutfitGroup.Add(outfitGroup.Elements("Member"));
-                foreach (var member in combinedOutfitGroup.Elements("Member"))
+                foreach (var outfitName in outfitNames.OrderBy(x => x))
                 {
-                    var memberNameAttribute = member.Attribute("name");
-                    if (memberNameAttribute is null) continue;
-                    if (oldToNewOutfitNames.TryGetValue(memberNameAttribute.Value, out var newOutfitName))
-                        memberNameAttribute.Value = newOutfitName;
+                    sliderGroup.Add(new XElement("Member", new XAttribute("name", outfitName)));
                 }
 
-                sliderGroups.Add(combinedOutfitGroup);
+                return sliderGroup;
             }
+
+            foreach (var item in outfitGroups)
+            {
+                var (outfitGroupName, bodyName) = item.Key;
+
+                if (!outfitGroupName.Contains(bodyName))
+                    outfitGroupName += $" ({bodyName})";
+                outfitGroupName += " (Unique Player)";
+
+                sliderGroups.Add(MakeSliderGroup(item, outfitGroupName));
+            }
+
+            foreach (var item in (from item in outfitNameToBodyName
+                group item.Key by item.Value))
+            {
+                sliderGroups.Add(MakeSliderGroup(item, $"Original ({item.Key})"));
+            }
+
+            foreach (var (bodyName, uniquePlayerOutfitsForBodyName) in uniquePlayerOutfits)
+                sliderGroups.Add(MakeSliderGroup(uniquePlayerOutfitsForBodyName, $"Unique Player ({bodyName})"));
 
             outfitsDoc.Save(outfitsPath + outfitOutputFileName);
             sliderGroupDoc.Save(groupsPath + groupOutputFileName);
@@ -221,9 +320,9 @@ namespace UniquePlayer
 
         public static void RunPatch(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
         {
-            var linkCache = state.LinkCache;
+            var outfitFilesTask = new Task(() => CopyAndModifyOutfitFiles(state.Settings.DataFolderPath));
 
-            CopyAndModifyOutfitFiles(state.Settings.DataFolderPath);
+            var linkCache = state.LinkCache;
 
             var playableRaceFormList = linkCache.Resolve<IFormListGetter>(playableRaceFormListFormKey);
             var playableVampireRaceFormList = linkCache.Resolve<IFormListGetter>(playableVampireRaceFormListFormKey);
@@ -234,8 +333,9 @@ namespace UniquePlayer
             if (playableRaceFormLinks.Count() != playableVampireRaceFormLinks.Count())
                 throw new Exception("The number of playable races and the number of playable vampire races does not match, cannot proceed.");
 
-            var victimRaceFormKeys = playableRaceFormLinks.Select(x => x.FormKey).Concat(playableVampireRaceFormLinks.Select(x => x.FormKey)).ToHashSet();
+            outfitFilesTask.Start();
 
+            var victimRaceFormKeys = playableRaceFormLinks.Select(x => x.FormKey).Concat(playableVampireRaceFormLinks.Select(x => x.FormKey)).ToHashSet();
 
             var otherFormLists =
                 from x in state.LoadOrder.PriorityOrder.WinningOverrides<IFormListGetter>()
@@ -281,9 +381,9 @@ namespace UniquePlayer
                     return newPath;
                 }
 
-                newPath = MangleMeshesPath(path, "Player");
+                newPath = MangleMeshesPath(path, "Player", out var testPath);
 
-                if (!File.Exists(meshesPath + newPath))
+                if (!File.Exists(meshesPath + testPath))
                 {
                     inspectedMeshPaths.Add(path);
                     return path;
@@ -553,6 +653,8 @@ namespace UniquePlayer
                 foreach (var item in armor.Armature.ToList())
                     if (armorAddonAdditions.TryGetValue(item.FormKey, out var value))
                         armor.Armature.Insert(0, new FormLink<IArmorAddonGetter>(value));
+
+            outfitFilesTask.Wait();
         }
     }
 }
