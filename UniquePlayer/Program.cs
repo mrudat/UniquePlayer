@@ -376,7 +376,7 @@ namespace UniquePlayer
                 {
                     if (model is null) return;
                     ChangeMeshPath(model.File, ref needsEdit, meshesPath);
-                    model.AlternateTextures?.ForEach(alternateTexture => needsEdit |= UpdateTextureSet(alternateTexture.NewTexture, armorAddon, state, texturesPath));
+                    model.AlternateTextures?.ForEach(alternateTexture => needsEdit |= UpdateTextureSet(alternateTexture.NewTexture, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, armorAddon), NewTextureSet(state)));
                 }
 
                 void applyModelEdit(Model? model)
@@ -391,7 +391,7 @@ namespace UniquePlayer
 
                 armorAddon.SkinTexture?.ForEach(x =>
                 {
-                    if (!x.IsNull) needsEdit |= UpdateTextureSet(x, armorAddon, state, texturesPath);
+                    if (!x.IsNull) needsEdit |= UpdateTextureSet(x, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, armorAddon), NewTextureSet(state));
                 });
 
                 if (needsEdit)
@@ -464,7 +464,7 @@ namespace UniquePlayer
 
             race.HeadData?.NotNull().ForEach(headData =>
             {
-                headData.FaceDetails.NotNull().ForEach(x => UpdateTextureSet(x, race, state, texturesPath));
+                headData.FaceDetails.NotNull().ForEach(x => UpdateTextureSet(x, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, race), NewTextureSet(state)));
 
                 headData.HeadParts.NotNull().ForEach(x => UpdateHeadPart(x.Head, oldRace, state, texturesPath, meshesPath));
 
@@ -493,7 +493,7 @@ namespace UniquePlayer
             var changed = false;
 
             if (!headPart.TextureSet.IsNull)
-                changed |= UpdateTextureSet(headPart.TextureSet, headPart, state, texturesPath);
+                changed |= UpdateTextureSet(headPart.TextureSet, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, headPart), NewTextureSet(state));
 
             headPart.Parts.ForEach(x =>
             {
@@ -505,7 +505,7 @@ namespace UniquePlayer
 
             headPart.Model?.AlternateTextures?.ForEach(x =>
             {
-                changed |= UpdateTextureSet(x.NewTexture, headPart, state, texturesPath);
+                changed |= UpdateTextureSet(x.NewTexture, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, headPart), NewTextureSet(state));
             });
 
             headPart.ExtraParts.ForEach(x =>
@@ -538,15 +538,27 @@ namespace UniquePlayer
             replacementHeadParts.Add(headPartFormKey, newHeadPart.FormKey);
         }
 
-        public bool UpdateTextureSet(IFormLinkGetter<ITextureSetGetter> textureSetFormLink, IMajorRecordCommonGetter rec, IPatcherState<ISkyrimMod, ISkyrimModGetter> state, string texturesPath)
+        public static Func<IFormLinkGetter<T>, Func<string>, T> ResolveOrThrow<T>(
+            IPatcherState<ISkyrimMod, ISkyrimModGetter> state,
+            IMajorRecordCommonGetter rec)
+            where T : class, IMajorRecordGetter => (
+            IFormLinkGetter<T> formLink,
+            Func<string> message) =>
+            {
+                if (!formLink.TryResolve(state.LinkCache, out var txst))
+                    throw RecordException.Factory(new NullReferenceException(message()), rec);
+
+                return txst;
+            };
+
+        public static Func<string, ITextureSet> NewTextureSet(IPatcherState<ISkyrimMod, ISkyrimModGetter> state) => (string editorID) => state.PatchMod.TextureSets.AddNew(editorID);
+
+        public bool UpdateTextureSet(IFormLinkGetter<ITextureSetGetter> textureSetFormLink, string texturesPath, Func<IFormLinkGetter<ITextureSetGetter>, Func<string>, ITextureSetGetter> resolveTextureSet, Func<string, ITextureSet> newTextureSet)
         {
             if (textureSetFormLink.IsNull) return false;
             var textureSetFormKey = textureSetFormLink.FormKey;
             if (replacementTextureSets.ContainsKey(textureSetFormKey)) return true;
-            if (!textureSetFormLink.TryResolve(state.LinkCache, out var txst))
-            {
-                throw RecordException.Factory(new NullReferenceException($"Could not find referenced TXST {textureSetFormLink}"), rec);
-            }
+            var txst = resolveTextureSet(textureSetFormLink, () => $"Could not find referenced TXST {textureSetFormLink}");
 
             var changed = false;
             ChangeTexturePath(txst.Diffuse, ref changed, texturesPath);
@@ -560,7 +572,7 @@ namespace UniquePlayer
 
             if (!changed) return false;
 
-            var newTxst = state.PatchMod.TextureSets.AddNew($"{txst.EditorID}_UniquePlayer");
+            var newTxst = newTextureSet($"{txst.EditorID}_UniquePlayer");
             newTxst.DeepCopyIn(txst, new TextureSet.TranslationMask(defaultOn: true)
             {
                 EditorID = false
