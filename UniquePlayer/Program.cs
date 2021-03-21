@@ -386,7 +386,7 @@ namespace UniquePlayer
                 {
                     if (model is null) return;
                     MeshPaths.ChangeMeshPath(model.File, ref needsEdit, meshesPath);
-                    model.AlternateTextures?.ForEach(alternateTexture => needsEdit |= TextureSets.UpdateTextureSet(alternateTexture.NewTexture, texturesPath, Resolver<ITextureSetGetter>(), NewTextureSet()));
+                    model.AlternateTextures?.ForEach(alternateTexture => needsEdit |= TextureSets.UpdateTextureSet(alternateTexture.NewTexture, texturesPath));
                 }
 
                 void applyModelEdit(Model? model)
@@ -401,7 +401,7 @@ namespace UniquePlayer
 
                 armorAddon.SkinTexture?.ForEach(x =>
                 {
-                    if (!x.IsNull) needsEdit |= TextureSets.UpdateTextureSet(x, texturesPath, Resolver<ITextureSetGetter>(), NewTextureSet());
+                    if (!x.IsNull) needsEdit |= TextureSets.UpdateTextureSet(x, texturesPath);
                 });
 
                 if (needsEdit)
@@ -474,9 +474,9 @@ namespace UniquePlayer
 
             race.HeadData?.NotNull().ForEach(headData =>
             {
-                headData.FaceDetails.NotNull().ForEach(x => TextureSets.UpdateTextureSet(x, texturesPath, Resolver<ITextureSetGetter>(), NewTextureSet()));
+                headData.FaceDetails.NotNull().ForEach(x => TextureSets.UpdateTextureSet(x, texturesPath));
 
-                headData.HeadParts.NotNull().ForEach(x => UpdateHeadPart(x.Head, oldRace, texturesPath, meshesPath, Resolver<ITextureSetGetter>(), NewTextureSet()));
+                headData.HeadParts.NotNull().ForEach(x => UpdateHeadPart(x.Head, oldRace, texturesPath, meshesPath));
 
                 foreach (var item in headData.TintMasks)
                 {
@@ -492,7 +492,7 @@ namespace UniquePlayer
             return newRace;
         }
 
-        public void UpdateHeadPart(IFormLinkGetter<IHeadPartGetter> headPartItem, IMajorRecordCommonGetter race, string texturesPath, string meshesPath, Func<IFormLinkGetter<ITextureSetGetter>, ITextureSetGetter> textureSetResolver, Func<string, ITextureSet> newTextureSet)
+        public void UpdateHeadPart(IFormLinkGetter<IHeadPartGetter> headPartItem, IMajorRecordCommonGetter race, string texturesPath, string meshesPath)
         {
             if (inspectedHeadParts.Contains(headPartItem)) return;
             var headPartFormKey = headPartItem.FormKey;
@@ -503,7 +503,7 @@ namespace UniquePlayer
                 var changed = false;
 
                 if (!headPart.TextureSet.IsNull)
-                    changed |= TextureSets.UpdateTextureSet(headPart.TextureSet, texturesPath, textureSetResolver, newTextureSet);
+                    changed |= TextureSets.UpdateTextureSet(headPart.TextureSet, texturesPath);
 
                 headPart.Parts.ForEach(x =>
                 {
@@ -515,12 +515,12 @@ namespace UniquePlayer
 
                 headPart.Model?.AlternateTextures?.ForEach(x =>
                 {
-                    changed |= TextureSets.UpdateTextureSet(x.NewTexture, texturesPath, textureSetResolver, newTextureSet);
+                    changed |= TextureSets.UpdateTextureSet(x.NewTexture, texturesPath);
                 });
 
                 headPart.ExtraParts.ForEach(x =>
                 {
-                    UpdateHeadPart(x, headPart, texturesPath, meshesPath, textureSetResolver, newTextureSet);
+                    UpdateHeadPart(x, headPart, texturesPath, meshesPath);
                 });
 
                 if (!changed)
@@ -552,11 +552,6 @@ namespace UniquePlayer
                 throw RecordException.Factory(e, headPart);
             }
         }
-
-        public Func<IFormLinkGetter<T>, T> Resolver<T>()
-            where T : class, IMajorRecordGetter => (IFormLinkGetter<T> formLink) => formLink.Resolve(LinkCache);
-
-        public Func<string, ITextureSet> NewTextureSet() => (string editorID) => PatchMod.TextureSets.AddNew(editorID);
-    } 
+    }
 
 }

@@ -46,7 +46,7 @@ namespace Tests
 
             TextureSets program = new(patchMod.Object, linkCache.Object);
 
-            var changed = program.UpdateTextureSet(textureSetFormLink, TexturePath, null!, null!);
+            var changed = program.UpdateTextureSet(textureSetFormLink, TexturePath);
 
             Assert.False(changed);
             Assert.Empty(program.replacementTextureSets);
@@ -88,7 +88,7 @@ namespace Tests
                 { @"Textures\Player\Textures\replaced_d.dds", new("") },
             }));
 
-            var changed = program.UpdateTextureSet(textureSetFormLink, TexturePath, null!, null!);
+            var changed = program.UpdateTextureSet(textureSetFormLink, TexturePath);
 
             Assert.Single(patchMod.TextureSets);
 
@@ -129,7 +129,7 @@ namespace Tests
 
             ITextureSet newTextureSet(string editorID) => throw new NotImplementedException();
 
-            Assert.Throws<RecordException>(() => program.UpdateTextureSet(textureSetFormLink, TexturePath, resolveTextureSet, newTextureSet));
+            Assert.Throws<RecordException>(() => program.UpdateTextureSet(textureSetFormLink, TexturePath));
         }
 
 

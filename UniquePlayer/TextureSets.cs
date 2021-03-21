@@ -25,7 +25,7 @@ namespace UniquePlayer
             TexturePaths = texturePaths ??  new TexturePaths(fileSystem: fileSystem);
         }
 
-        public bool UpdateTextureSet(IFormLinkGetter<ITextureSetGetter> textureSetFormLink, string texturesPath, Func<IFormLinkGetter<ITextureSetGetter>, ITextureSetGetter> resolveTextureSet, Func<string, ITextureSet> newTextureSet)
+        public bool UpdateTextureSet(IFormLinkGetter<ITextureSetGetter> textureSetFormLink, string texturesPath)
         {
             if (textureSetFormLink.IsNull) return false;
             if (inspectedTextureSets.Contains(textureSetFormLink)) return false;
