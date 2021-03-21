@@ -75,7 +75,7 @@ namespace UniquePlayer
         public static readonly Dictionary<FormKey, FormKey> replacementPlayableRacesDict = new();
 
         public static readonly Dictionary<FormKey, FormKey> replacementHeadParts = new();
-        public static readonly HashSet<FormKey> inspectedHeadParts = new();
+        public static readonly HashSet<IFormLinkGetter<IHeadPartGetter>> inspectedHeadParts = new();
 
         public static readonly Dictionary<string, string> replacementTexturePathDict = new();
         public static readonly Dictionary<FormKey, FormKey> replacementTextureSets = new();
@@ -84,7 +84,7 @@ namespace UniquePlayer
         public static readonly Dictionary<string, string> replacementMeshPathDict = new();
         public static readonly HashSet<string> inspectedMeshPaths = new();
 
-        public static readonly HashSet<FormKey> presetCharacters = new();
+        public static readonly HashSet<IFormLinkGetter<INpcGetter>> presetCharacters = new();
 
         public static readonly HashSet<string> seenDirectories = new();
 
@@ -92,14 +92,6 @@ namespace UniquePlayer
             "_1.nif",
             ".nif"
         };
-
-        /// <returns>setA.Intersect(setB).Count</returns>
-        private static int CountIntersect<T>(ISet<T> setA, ISet<T> setB)
-        {
-            if (setA.Count > setB.Count)
-                return CountIntersect(setB, setA);
-            return setA.Count(setB.Contains);
-        }
 
         /// <summary>
         /// Edits a path to a mesh file using Skyrim's mesh path rules.
@@ -199,7 +191,7 @@ namespace UniquePlayer
 
                     foreach (var (candidateBodyName, candidateSliderNames) in bodyNameToSliderNameSets)
                     {
-                        var matchCount = CountIntersect(sliderNames, candidateSliderNames);
+                        var matchCount = sliderNames.CountIntersect(candidateSliderNames);
 
                         if (matchCount > highestCount)
                         {
@@ -420,9 +412,9 @@ namespace UniquePlayer
 
             void updateHeadPart(IFormLinkGetter<IHeadPartGetter> headPartItem, IMajorRecordCommonGetter race)
             {
+                if (inspectedHeadParts.Contains(headPartItem)) return;
                 var headPartFormKey = headPartItem.FormKey;
                 if (replacementHeadParts.ContainsKey(headPartFormKey)) return;
-                if (inspectedHeadParts.Contains(headPartFormKey)) return;
                 var headPart = headPartItem.Resolve(state.LinkCache);
                 if (headPart == null) throw RecordException.Factory(new NullReferenceException($"Could not find referenced HDPT {headPartFormKey}"), race);
 
@@ -451,7 +443,7 @@ namespace UniquePlayer
 
                 if (!changed)
                 {
-                    inspectedHeadParts.Add(headPartFormKey);
+                    inspectedHeadParts.Add(headPartItem);
                     return;
                 };
 
@@ -499,7 +491,7 @@ namespace UniquePlayer
                         item.FileName = changeTexturePath(item.FileName, ref junk);
                     }
 
-                    presetCharacters.Add(headData.RacePresets.Select(x => x.FormKey));
+                    presetCharacters.Add(headData.RacePresets);
                 });
                 race.RemapLinks(replacementTextureSets);
                 race.RemapLinks(replacementHeadParts);
@@ -546,9 +538,7 @@ namespace UniquePlayer
             state.PatchMod.Npcs.GetOrAddAsOverride(Skyrim.Npc.Player.Resolve(state.LinkCache)).RemapLinks(replacementPlayableRacesDict);
 
             foreach (var item in presetCharacters)
-            {
-                state.PatchMod.Npcs.GetOrAddAsOverride(linkCache.Resolve<INpcGetter>(item)).RemapLinks(replacementPlayableRacesDict);
-            }
+                state.PatchMod.Npcs.GetOrAddAsOverride(item.Resolve(linkCache)).RemapLinks(replacementPlayableRacesDict);
 
             // TODO only do armor addons that are used by playable armor?
             Console.WriteLine("Creating new ArmorAddons that use player-specific meshes or editing existing ArmorAddons to support newly added races.");
