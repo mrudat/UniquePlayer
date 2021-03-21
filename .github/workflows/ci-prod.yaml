@@ -1,0 +1,65 @@
+name: Main Build
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+    - name: Cache .NET dependencies
+      uses: actions/cache@v2
+      with:
+        path: '~/.nuget/packages'
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    - name: Install dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build -c Release --no-restore
+    - name: Test
+      run: dotnet test -c Release --no-build
+
+  todo:
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: "TODO to Issue"
+      uses: "alstr/todo-to-issue-action@v2.4.1"
+      id: "todo"
+      with:
+        COMMENT_MARKER: "//"
+        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  coverage:
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+    - name: Cache .NET dependencies
+      uses: actions/cache@v2
+      with:
+        path: '~/.nuget/packages'
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+    - name: Install dependencies
+      run: dotnet restore
+    - name: Build
+      run: dotnet build -c Release --no-restore
+    - name: Test
+      run: dotnet test --collect:"XPlat Code Coverage" --settings coverlet.runsettings -c Release --no-build
+    - name: Publish code coverage
+      uses: paambaati/codeclimate-action@v2.7.5
+      env:
+        CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
+      with:
+        coverageLocations: "**/coverage.info:lcov"
