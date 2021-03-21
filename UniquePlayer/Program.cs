@@ -580,7 +580,6 @@ namespace UniquePlayer
 
         public string ChangeMeshPath(string path, ref bool changed, string meshesPath)
         {
-            //if (path is null) return null;
             if (inspectedMeshPaths.Contains(path)) return path;
             if (replacementMeshPathDict.TryGetValue(path, out var newPath))
             {
