@@ -7,8 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.IO.Abstractions" Version="13.2.25" />
+    <PackageReference Include="Roslyn.System.IO.Abstractions.Analyzers" Version="12.2.19">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Mutagen.Bethesda" Version="0.27.2" />
     <PackageReference Include="Mutagen.Bethesda.Synthesis" Version="0.17.3" />
     <PackageReference Include="Mutagen.Bethesda.FormKeys.SkyrimSE" Version="2.0.0" />
+    <PackageReference Include="System.IO.Abstractions.TestingHelpers" Version="13.2.25" />
   </ItemGroup>
 </Project>
