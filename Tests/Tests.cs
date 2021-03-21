@@ -14,6 +14,13 @@ namespace Tests
         public static readonly string TexturePath = @"Textures\";
         public static readonly string MeshesPath = @"Meshes\";
 
+        public static readonly ModKey MasterModKey = ModKey.FromNameAndExtension("Master.esm");
+        public static readonly ModKey PatchModKey = ModKey.FromNameAndExtension("Patch.esp");
+
+        public static readonly FormKey MasterFormKey1 = MasterModKey.MakeFormKey(0x800);
+
+        public static readonly FormKey PatchFormKey1 = PatchModKey.MakeFormKey(0x800);
+
         public static readonly TheoryData<string?, string?, bool> ChangeTexturePathData = new()
         {
             { null, null, false },
@@ -99,7 +106,7 @@ namespace Tests
             var textureSetFormLink = modKey.MakeFormKey(0x12345).AsLinkGetter<ITextureSetGetter>();
             var textureSet2FormLink = modKey2.MakeFormKey(0x123456);
 
-            ITextureSetGetter resolveOrThrow(IFormLinkGetter<ITextureSetGetter> formLink, Func<string> message) => new TextureSet(textureSetFormLink.FormKey, SkyrimRelease.SkyrimSE)
+            ITextureSetGetter resolveOrThrow(IFormLinkGetter<ITextureSetGetter> formLink) => new TextureSet(textureSetFormLink.FormKey, SkyrimRelease.SkyrimSE)
             {
             };
 
@@ -125,14 +132,10 @@ namespace Tests
                 { @"Textures\Player\Textures\replaced_d.dds", new("") },
             }));
 
-            var modKey = ModKey.FromNameAndExtension("Master.esp");
-            var modKey2 = ModKey.FromNameAndExtension("Patch.esp");
-
-            var textureSetFormKey = modKey.MakeFormKey(0x12345);
+            var textureSetFormKey = MasterFormKey1;
             var textureSetFormLink = textureSetFormKey.AsLinkGetter<ITextureSetGetter>();
-            var newTextureSetFormKey = modKey2.MakeFormKey(0x123456);
 
-            ITextureSetGetter resolveOrThrow(IFormLinkGetter<ITextureSetGetter> formLink, Func<string> message) => new TextureSet(textureSetFormKey, SkyrimRelease.SkyrimSE)
+            ITextureSetGetter resolveOrThrow(IFormLinkGetter<ITextureSetGetter> formLink) => new TextureSet(textureSetFormKey, SkyrimRelease.SkyrimSE)
             {
                 BacklightMaskOrSpecular = "replaced_s.dds",
                 Multilayer = "replaced_multilayer.dds",
@@ -145,6 +148,8 @@ namespace Tests
             };
 
             ITextureSetGetter addedTextureSet = null!;
+
+            var newTextureSetFormKey = PatchFormKey1;
 
             ITextureSet newTextureSet(string editorID)
             {
@@ -171,5 +176,38 @@ namespace Tests
             Assert.True(program.replacementTextureSets.TryGetValue(textureSetFormKey, out var formKey));
             Assert.Equal(newTextureSetFormKey, formKey);
         }
+
+        [Fact]
+        public void TestUpdateTextureSetThrows()
+        {
+            Program program = new(new MockFileSystem(new Dictionary<string, MockFileData>{
+                { @"Textures\Player\Textures\replaced_d.dds", new("") },
+            }));
+
+            var textureSetFormKey = MasterFormKey1;
+            var textureSetFormLink = textureSetFormKey.AsLinkGetter<ITextureSetGetter>();
+
+            ITextureSetGetter resolveOrThrow(IFormLinkGetter<ITextureSetGetter> formLink) => new TextureSet(textureSetFormKey, SkyrimRelease.SkyrimSE)
+            {
+                Diffuse = "replaced_d.dds",
+            };
+
+            ITextureSet newTextureSet(string editorID) => throw new NotImplementedException();
+
+            Assert.Throws<RecordException>(() => program.UpdateTextureSet(textureSetFormLink, TexturePath, resolveOrThrow, newTextureSet));
+        }
+
+        /*
+        public void TestUpdateHeadPart() {
+            Program program = new();
+
+            var headPartFormLink = MasterFormKey1.AsLinkGetter<IHeadPartGetter>();
+
+            IMajorRecordCommonGetter race = null;
+
+            program.UpdateHeadPart(headPartFormLink, race, state, TexturePath, MeshesPath);
+        }
+        */
+
     }
 }

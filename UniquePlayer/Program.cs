@@ -87,6 +87,7 @@ namespace UniquePlayer
         public readonly HashSet<IFormLinkGetter<IHeadPartGetter>> inspectedHeadParts = new();
 
         public readonly Dictionary<string, string> replacementTexturePathDict = new();
+        public readonly HashSet<IFormLinkGetter<ITextureSetGetter>> inspectedTextureSets = new();
         public readonly Dictionary<FormKey, FormKey> replacementTextureSets = new();
         public readonly HashSet<string> inspectedTexturePaths = new();
 
@@ -376,7 +377,7 @@ namespace UniquePlayer
                 {
                     if (model is null) return;
                     ChangeMeshPath(model.File, ref needsEdit, meshesPath);
-                    model.AlternateTextures?.ForEach(alternateTexture => needsEdit |= UpdateTextureSet(alternateTexture.NewTexture, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, armorAddon), NewTextureSet(state)));
+                    model.AlternateTextures?.ForEach(alternateTexture => needsEdit |= UpdateTextureSet(alternateTexture.NewTexture, texturesPath, Resolver<ITextureSetGetter>(state), NewTextureSet(state)));
                 }
 
                 void applyModelEdit(Model? model)
@@ -391,7 +392,7 @@ namespace UniquePlayer
 
                 armorAddon.SkinTexture?.ForEach(x =>
                 {
-                    if (!x.IsNull) needsEdit |= UpdateTextureSet(x, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, armorAddon), NewTextureSet(state));
+                    if (!x.IsNull) needsEdit |= UpdateTextureSet(x, texturesPath, Resolver<ITextureSetGetter>(state), NewTextureSet(state));
                 });
 
                 if (needsEdit)
@@ -464,7 +465,7 @@ namespace UniquePlayer
 
             race.HeadData?.NotNull().ForEach(headData =>
             {
-                headData.FaceDetails.NotNull().ForEach(x => UpdateTextureSet(x, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, race), NewTextureSet(state)));
+                headData.FaceDetails.NotNull().ForEach(x => UpdateTextureSet(x, texturesPath, Resolver<ITextureSetGetter>(state), NewTextureSet(state)));
 
                 headData.HeadParts.NotNull().ForEach(x => UpdateHeadPart(x.Head, oldRace, state, texturesPath, meshesPath));
 
@@ -488,106 +489,113 @@ namespace UniquePlayer
             var headPartFormKey = headPartItem.FormKey;
             if (replacementHeadParts.ContainsKey(headPartFormKey)) return;
             var headPart = headPartItem.Resolve(state.LinkCache);
-            if (headPart == null) throw RecordException.Factory(new NullReferenceException($"Could not find referenced HDPT {headPartFormKey}"), race);
-
-            var changed = false;
-
-            if (!headPart.TextureSet.IsNull)
-                changed |= UpdateTextureSet(headPart.TextureSet, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, headPart), NewTextureSet(state));
-
-            headPart.Parts.ForEach(x =>
+            try
             {
-                if (x.FileName != null) ChangeMeshPath(x.FileName, ref changed, meshesPath);
-            });
+                var changed = false;
 
-            if (headPart.Model != null)
-                ChangeMeshPath(headPart.Model.File, ref changed, meshesPath);
+                if (!headPart.TextureSet.IsNull)
+                    changed |= UpdateTextureSet(headPart.TextureSet, texturesPath, Resolver<ITextureSetGetter>(state), NewTextureSet(state));
 
-            headPart.Model?.AlternateTextures?.ForEach(x =>
+                headPart.Parts.ForEach(x =>
+                {
+                    if (x.FileName != null) ChangeMeshPath(x.FileName, ref changed, meshesPath);
+                });
+
+                if (headPart.Model != null)
+                    ChangeMeshPath(headPart.Model.File, ref changed, meshesPath);
+
+                headPart.Model?.AlternateTextures?.ForEach(x =>
+                {
+                    changed |= UpdateTextureSet(x.NewTexture, texturesPath, Resolver<ITextureSetGetter>(state), NewTextureSet(state));
+                });
+
+                headPart.ExtraParts.ForEach(x =>
+                {
+                    UpdateHeadPart(x, headPart, state, texturesPath, meshesPath);
+                });
+
+                if (!changed)
+                {
+                    inspectedHeadParts.Add(headPartItem);
+                    return;
+                };
+
+                var newHeadPart = state.PatchMod.HeadParts.AddNew($"{headPart.EditorID}_UniquePlayer");
+                newHeadPart.DeepCopyIn(headPart, new HeadPart.TranslationMask(defaultOn: true)
+                {
+                    EditorID = false
+                });
+                // TODO duplicate headPart FormList and restrict to player only?
+
+                newHeadPart.Parts.ForEach(x =>
+                {
+                    if (x.FileName != null) x.FileName = ChangeMeshPath(x.FileName, ref changed, meshesPath);
+                });
+
+                if (newHeadPart.Model != null)
+                    newHeadPart.Model.File = ChangeMeshPath(newHeadPart.Model.File, ref changed, meshesPath);
+
+                newHeadPart.RemapLinks(replacementTextureSets);
+                replacementHeadParts.Add(headPartFormKey, newHeadPart.FormKey);
+            }
+            catch (Exception e)
             {
-                changed |= UpdateTextureSet(x.NewTexture, texturesPath, ResolveOrThrow<ITextureSetGetter>(state, headPart), NewTextureSet(state));
-            });
-
-            headPart.ExtraParts.ForEach(x =>
-            {
-                UpdateHeadPart(x, headPart, state, texturesPath, meshesPath);
-            });
-
-            if (!changed)
-            {
-                inspectedHeadParts.Add(headPartItem);
-                return;
-            };
-
-            var newHeadPart = state.PatchMod.HeadParts.AddNew($"{headPart.EditorID}_UniquePlayer");
-            newHeadPart.DeepCopyIn(headPart, new HeadPart.TranslationMask(defaultOn: true)
-            {
-                EditorID = false
-            });
-            // TODO duplicate headPart FormList and restrict to player only?
-
-            newHeadPart.Parts.ForEach(x =>
-            {
-                if (x.FileName != null) x.FileName = ChangeMeshPath(x.FileName, ref changed, meshesPath);
-            });
-
-            if (newHeadPart.Model != null)
-                newHeadPart.Model.File = ChangeMeshPath(newHeadPart.Model.File, ref changed, meshesPath);
-
-            newHeadPart.RemapLinks(replacementTextureSets);
-            replacementHeadParts.Add(headPartFormKey, newHeadPart.FormKey);
+                throw RecordException.Factory(e, headPart);
+            }
         }
 
-        public static Func<IFormLinkGetter<T>, Func<string>, T> ResolveOrThrow<T>(
-            IPatcherState<ISkyrimMod, ISkyrimModGetter> state,
-            IMajorRecordCommonGetter rec)
-            where T : class, IMajorRecordGetter => (
-            IFormLinkGetter<T> formLink,
-            Func<string> message) =>
-            {
-                if (!formLink.TryResolve(state.LinkCache, out var txst))
-                    throw RecordException.Factory(new NullReferenceException(message()), rec);
-
-                return txst;
-            };
+        public static Func<IFormLinkGetter<T>, T> Resolver<T>(
+            IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
+            where T : class, IMajorRecordGetter => (IFormLinkGetter<T> formLink) => formLink.Resolve(state.LinkCache);
 
         public static Func<string, ITextureSet> NewTextureSet(IPatcherState<ISkyrimMod, ISkyrimModGetter> state) => (string editorID) => state.PatchMod.TextureSets.AddNew(editorID);
 
-        public bool UpdateTextureSet(IFormLinkGetter<ITextureSetGetter> textureSetFormLink, string texturesPath, Func<IFormLinkGetter<ITextureSetGetter>, Func<string>, ITextureSetGetter> resolveTextureSet, Func<string, ITextureSet> newTextureSet)
+        public bool UpdateTextureSet(IFormLinkGetter<ITextureSetGetter> textureSetFormLink, string texturesPath, Func<IFormLinkGetter<ITextureSetGetter>, ITextureSetGetter> resolveTextureSet, Func<string, ITextureSet> newTextureSet)
         {
             if (textureSetFormLink.IsNull) return false;
+            if (inspectedTextureSets.Contains(textureSetFormLink)) return false;
             var textureSetFormKey = textureSetFormLink.FormKey;
             if (replacementTextureSets.ContainsKey(textureSetFormKey)) return true;
-            var txst = resolveTextureSet(textureSetFormLink, () => $"Could not find referenced TXST {textureSetFormLink}");
-
-            var changed = false;
-            ChangeTexturePath(txst.Diffuse, ref changed, texturesPath);
-            ChangeTexturePath(txst.NormalOrGloss, ref changed, texturesPath);
-            ChangeTexturePath(txst.EnvironmentMaskOrSubsurfaceTint, ref changed, texturesPath);
-            ChangeTexturePath(txst.GlowOrDetailMap, ref changed, texturesPath);
-            ChangeTexturePath(txst.Height, ref changed, texturesPath);
-            ChangeTexturePath(txst.Environment, ref changed, texturesPath);
-            ChangeTexturePath(txst.Multilayer, ref changed, texturesPath);
-            ChangeTexturePath(txst.BacklightMaskOrSpecular, ref changed, texturesPath);
-
-            if (!changed) return false;
-
-            var newTxst = newTextureSet($"{txst.EditorID}_UniquePlayer");
-            newTxst.DeepCopyIn(txst, new TextureSet.TranslationMask(defaultOn: true)
+            var txst = resolveTextureSet(textureSetFormLink);
+            try
             {
-                EditorID = false
-            });
-            replacementTextureSets.Add(textureSetFormKey, newTxst.FormKey);
+                var changed = false;
+                ChangeTexturePath(txst.Diffuse, ref changed, texturesPath);
+                ChangeTexturePath(txst.NormalOrGloss, ref changed, texturesPath);
+                ChangeTexturePath(txst.EnvironmentMaskOrSubsurfaceTint, ref changed, texturesPath);
+                ChangeTexturePath(txst.GlowOrDetailMap, ref changed, texturesPath);
+                ChangeTexturePath(txst.Height, ref changed, texturesPath);
+                ChangeTexturePath(txst.Environment, ref changed, texturesPath);
+                ChangeTexturePath(txst.Multilayer, ref changed, texturesPath);
+                ChangeTexturePath(txst.BacklightMaskOrSpecular, ref changed, texturesPath);
 
-            newTxst.Diffuse = ChangeTexturePath(txst.Diffuse, ref changed, texturesPath);
-            newTxst.NormalOrGloss = ChangeTexturePath(txst.NormalOrGloss, ref changed, texturesPath);
-            newTxst.EnvironmentMaskOrSubsurfaceTint = ChangeTexturePath(txst.EnvironmentMaskOrSubsurfaceTint, ref changed, texturesPath);
-            newTxst.GlowOrDetailMap = ChangeTexturePath(txst.GlowOrDetailMap, ref changed, texturesPath);
-            newTxst.Height = ChangeTexturePath(txst.Height, ref changed, texturesPath);
-            newTxst.Environment = ChangeTexturePath(txst.Environment, ref changed, texturesPath);
-            newTxst.Multilayer = ChangeTexturePath(txst.Multilayer, ref changed, texturesPath);
-            newTxst.BacklightMaskOrSpecular = ChangeTexturePath(txst.BacklightMaskOrSpecular, ref changed, texturesPath);
-            return true;
+                if (!changed)
+                {
+                    inspectedTextureSets.Add(textureSetFormLink);
+                    return false;
+                }
+
+                var newTxst = newTextureSet($"{txst.EditorID}_UniquePlayer");
+                newTxst.DeepCopyIn(txst, new TextureSet.TranslationMask(defaultOn: true)
+                {
+                    EditorID = false
+                });
+                replacementTextureSets.Add(textureSetFormKey, newTxst.FormKey);
+
+                newTxst.Diffuse = ChangeTexturePath(txst.Diffuse, ref changed, texturesPath);
+                newTxst.NormalOrGloss = ChangeTexturePath(txst.NormalOrGloss, ref changed, texturesPath);
+                newTxst.EnvironmentMaskOrSubsurfaceTint = ChangeTexturePath(txst.EnvironmentMaskOrSubsurfaceTint, ref changed, texturesPath);
+                newTxst.GlowOrDetailMap = ChangeTexturePath(txst.GlowOrDetailMap, ref changed, texturesPath);
+                newTxst.Height = ChangeTexturePath(txst.Height, ref changed, texturesPath);
+                newTxst.Environment = ChangeTexturePath(txst.Environment, ref changed, texturesPath);
+                newTxst.Multilayer = ChangeTexturePath(txst.Multilayer, ref changed, texturesPath);
+                newTxst.BacklightMaskOrSpecular = ChangeTexturePath(txst.BacklightMaskOrSpecular, ref changed, texturesPath);
+                return true;
+            }
+            catch (Exception e)
+            {
+                throw RecordException.Factory("UpdatTextureSet", txst, e);
+            }
         }
 
         public string ChangeMeshPath(string path, ref bool changed, string meshesPath)
