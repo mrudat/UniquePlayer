@@ -303,7 +303,7 @@ namespace UniquePlayer
 
         public static void RunPatch(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
         {
-            var outfitFilesTask = new Task(() => CopyAndModifyOutfitFiles(state.Settings.DataFolderPath));
+            var outfitFilesTask = new Task(() => CopyAndModifyOutfitFiles(state.DataFolderPath));
 
             var linkCache = state.LinkCache;
 
@@ -330,8 +330,8 @@ namespace UniquePlayer
             var modifiedPlayableRaceFormList = state.PatchMod.FormLists.GetOrAddAsOverride(playableRaceFormList);
             var modifiedPlayableVampireRaceFormList = state.PatchMod.FormLists.GetOrAddAsOverride(playableVampireRaceFormList);
 
-            var texturesPath = state.Settings.DataFolderPath + "\\Textures\\";
-            var meshesPath = state.Settings.DataFolderPath + "\\Meshes\\";
+            var texturesPath = state.DataFolderPath + "\\Textures\\";
+            var meshesPath = state.DataFolderPath + "\\Meshes\\";
 
             string? changeTexturePath(string? path, ref bool changed)
             {
