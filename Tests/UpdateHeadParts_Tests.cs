@@ -12,8 +12,8 @@ namespace Tests
 {
     public class UpdateHeadParts_Tests
     {
-        public static readonly string TexturePath = @"Textures\";
-        public static readonly string MeshesPath = @"Meshes\";
+        public static readonly string TexturePath = "Textures";
+        public static readonly string MeshesPath = "Meshes";
 
         public static readonly ModKey MasterModKey = ModKey.FromNameAndExtension("Master.esm");
         public static readonly ModKey PatchModKey = ModKey.FromNameAndExtension("Patch.esp");
