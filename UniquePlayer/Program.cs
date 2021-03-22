@@ -301,7 +301,7 @@ namespace UniquePlayer
 
         public void RunPatch()
         {
-            var outfitFilesTask = new Task(() => CopyAndModifyOutfitFiles(state.DataFolderPath));
+            var outfitFilesTask = new Task(() => CopyAndModifyOutfitFiles(State.DataFolderPath));
 
             var playableRaceFormList = RaceCompatibility.FormList.PlayableRaceList.Resolve(LinkCache);
             var playableVampireRaceFormList = RaceCompatibility.FormList.PlayableVampireList.Resolve(LinkCache);
@@ -326,8 +326,8 @@ namespace UniquePlayer
             var modifiedPlayableRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableRaceFormList);
             var modifiedPlayableVampireRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableVampireRaceFormList);
 
-            var texturesPath = state.DataFolderPath + "\\Textures\\";
-            var meshesPath = state.DataFolderPath + "\\Meshes\\";
+            var texturesPath = State.DataFolderPath + "\\Textures\\";
+            var meshesPath = State.DataFolderPath + "\\Meshes\\";
 
             Console.WriteLine("Creating new player-only races from existing playable races.");
             foreach (var (raceLink, vampireRaceLink) in playableRaceFormLinks.Zip(playableVampireRaceFormLinks))
