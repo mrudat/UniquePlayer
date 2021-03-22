@@ -6,15 +6,15 @@ using System.IO.Abstractions;
 namespace UniquePlayer
 {
     public class MeshPaths {
-        private IFileSystem _fileSystem;
+        private readonly IFileSystem _fileSystem;
 
         public readonly HashSet<string> inspectedMeshPaths = new();
 
         public readonly Dictionary<string, string> replacementMeshPathDict = new();
 
-        public MeshPaths(IFileSystem? mockFileSystem = null)
+        public MeshPaths(IFileSystem? fileSystem = null)
         {
-            _fileSystem = mockFileSystem ?? new FileSystem();
+            _fileSystem = fileSystem ?? new FileSystem();
         }
 
         public string ChangeMeshPath(string path, ref bool changed, string meshesPath)

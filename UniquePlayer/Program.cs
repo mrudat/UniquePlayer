@@ -18,9 +18,9 @@ namespace UniquePlayer
     {
         private readonly IPatcherState<ISkyrimMod, ISkyrimModGetter> State;
 
-        private readonly ILinkCache<ISkyrimMod, ISkyrimModGetter> LinkCache;
-
         private readonly ISkyrimMod PatchMod;
+
+        private readonly ILinkCache<ISkyrimMod, ISkyrimModGetter> LinkCache;
 
         private readonly LoadOrder<IModListing<ISkyrimModGetter>> LoadOrder;
 
@@ -31,6 +31,8 @@ namespace UniquePlayer
         private readonly MeshPaths MeshPaths;
 
         private readonly TextureSets TextureSets;
+
+        private readonly HeadParts HeadParts;
 
         static Lazy<Settings> Settings = null!;
 
@@ -54,6 +56,7 @@ namespace UniquePlayer
             TexturePaths = new TexturePaths(_fileSystem);
             MeshPaths = new MeshPaths(_fileSystem);
             TextureSets = new TextureSets(PatchMod, LinkCache, texturePaths: TexturePaths, fileSystem: _fileSystem);
+            HeadParts = new HeadParts(PatchMod, LinkCache, TextureSets, MeshPaths, _fileSystem);
         }
 
         public static async Task<int> Main(string[] args)
@@ -101,9 +104,6 @@ namespace UniquePlayer
         };
 
         public readonly Dictionary<FormKey, FormKey> replacementPlayableRacesDict = new();
-
-        public readonly Dictionary<FormKey, FormKey> replacementHeadParts = new();
-        public readonly HashSet<IFormLinkGetter<IHeadPartGetter>> inspectedHeadParts = new();
 
         public readonly HashSet<IFormLinkGetter<INpcGetter>> presetCharacters = new();
 
@@ -476,7 +476,7 @@ namespace UniquePlayer
             {
                 headData.FaceDetails.NotNull().ForEach(x => TextureSets.UpdateTextureSet(x, texturesPath));
 
-                headData.HeadParts.NotNull().ForEach(x => UpdateHeadPart(x.Head, oldRace, texturesPath, meshesPath));
+                headData.HeadParts.NotNull().ForEach(x => HeadParts.UpdateHeadPart(x.Head, texturesPath, meshesPath));
 
                 foreach (var item in headData.TintMasks)
                 {
@@ -487,70 +487,9 @@ namespace UniquePlayer
                 presetCharacters.Add(headData.RacePresets);
             });
             race.RemapLinks(TextureSets.replacementTextureSets);
-            race.RemapLinks(replacementHeadParts);
+            race.RemapLinks(HeadParts.replacementHeadParts);
 
             return newRace;
-        }
-
-        public void UpdateHeadPart(IFormLinkGetter<IHeadPartGetter> headPartItem, IMajorRecordCommonGetter race, string texturesPath, string meshesPath)
-        {
-            if (inspectedHeadParts.Contains(headPartItem)) return;
-            var headPartFormKey = headPartItem.FormKey;
-            if (replacementHeadParts.ContainsKey(headPartFormKey)) return;
-            var headPart = headPartItem.Resolve(LinkCache);
-            try
-            {
-                var changed = false;
-
-                if (!headPart.TextureSet.IsNull)
-                    changed |= TextureSets.UpdateTextureSet(headPart.TextureSet, texturesPath);
-
-                headPart.Parts.ForEach(x =>
-                {
-                    if (x.FileName != null) MeshPaths.ChangeMeshPath(x.FileName, ref changed, meshesPath);
-                });
-
-                if (headPart.Model != null)
-                    MeshPaths.ChangeMeshPath(headPart.Model.File, ref changed, meshesPath);
-
-                headPart.Model?.AlternateTextures?.ForEach(x =>
-                {
-                    changed |= TextureSets.UpdateTextureSet(x.NewTexture, texturesPath);
-                });
-
-                headPart.ExtraParts.ForEach(x =>
-                {
-                    UpdateHeadPart(x, headPart, texturesPath, meshesPath);
-                });
-
-                if (!changed)
-                {
-                    inspectedHeadParts.Add(headPartItem);
-                    return;
-                };
-
-                var newHeadPart = PatchMod.HeadParts.AddNew($"{headPart.EditorID}_UniquePlayer");
-                newHeadPart.DeepCopyIn(headPart, new HeadPart.TranslationMask(defaultOn: true)
-                {
-                    EditorID = false
-                });
-                // TODO duplicate headPart FormList and restrict to player only?
-
-                newHeadPart.Parts.ForEach(x =>
-                {
-                    if (x.FileName != null) x.FileName = MeshPaths.ChangeMeshPath(x.FileName, ref changed, meshesPath);
-                });
-
-                if (newHeadPart.Model != null)
-                    newHeadPart.Model.File = MeshPaths.ChangeMeshPath(newHeadPart.Model.File, ref changed, meshesPath);
-
-                newHeadPart.RemapLinks(TextureSets.replacementTextureSets);
-                replacementHeadParts.Add(headPartFormKey, newHeadPart.FormKey);
-            }
-            catch (Exception e)
-            {
-                throw RecordException.Factory(e, headPart);
-            }
         }
     }
 

@@ -122,13 +122,6 @@ namespace Tests
             var textureSetFormKey = MasterFormKey1;
             var textureSetFormLink = textureSetFormKey.AsLinkGetter<ITextureSetGetter>();
 
-            ITextureSetGetter resolveTextureSet(IFormLinkGetter<ITextureSetGetter> formLink) => new TextureSet(textureSetFormKey, SkyrimRelease.SkyrimSE)
-            {
-                Diffuse = "replaced_d.dds",
-            };
-
-            ITextureSet newTextureSet(string editorID) => throw new NotImplementedException();
-
             Assert.Throws<RecordException>(() => program.UpdateTextureSet(textureSetFormLink, TexturePath));
         }
 
