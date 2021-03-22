@@ -22,7 +22,7 @@ namespace UniquePlayer
         {
             PatchMod = patchMod;
             LinkCache = linkCache;
-            TexturePaths = texturePaths ??  new TexturePaths(fileSystem: fileSystem);
+            TexturePaths = texturePaths ?? new TexturePaths(fileSystem: fileSystem);
         }
 
         public bool UpdateTextureSet(IFormLinkGetter<ITextureSetGetter> textureSetFormLink, string texturesPath)

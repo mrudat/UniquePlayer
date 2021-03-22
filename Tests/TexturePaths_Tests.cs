@@ -1,7 +1,7 @@
-﻿using Xunit;
-using UniquePlayer;
+﻿using System.Collections.Generic;
 using System.IO.Abstractions.TestingHelpers;
-using System.Collections.Generic;
+using UniquePlayer;
+using Xunit;
 
 namespace Tests
 {

@@ -1,16 +1,15 @@
-using System.Collections.Generic;
-using System.IO.Abstractions.TestingHelpers;
-using System.Linq;
-using System.Text;
 using Moq;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Skyrim;
+using System.Collections.Generic;
+using System.IO.Abstractions.TestingHelpers;
+using System.Linq;
 using UniquePlayer;
 using Xunit;
 
 namespace Tests
 {
-    public class Tests
+    public class UpdateHeadParts_Tests
     {
         public static readonly string TexturePath = @"Textures\";
         public static readonly string MeshesPath = @"Meshes\";
@@ -24,7 +23,8 @@ namespace Tests
         public static readonly FormKey PatchFormKey1 = PatchModKey.MakeFormKey(0x800);
 
         [Fact]
-        public static void TestUpdateHeadPartThrows() {
+        public static void TestUpdateHeadPartThrows()
+        {
             var patchMod = new Mock<ISkyrimMod>();
 
             var linkCache = new Mock<ILinkCache<ISkyrimMod, ISkyrimModGetter>>();

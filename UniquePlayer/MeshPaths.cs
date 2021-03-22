@@ -1,11 +1,11 @@
-﻿using Noggog;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO.Abstractions;
 
 namespace UniquePlayer
 {
-    public class MeshPaths {
+    public class MeshPaths
+    {
         private readonly IFileSystem _fileSystem;
 
         public readonly HashSet<string> inspectedMeshPaths = new();
@@ -55,6 +55,6 @@ namespace UniquePlayer
             return $"Meshes\\{testPath}";
         }
 
-    } 
+    }
 
 }

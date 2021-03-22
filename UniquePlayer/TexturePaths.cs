@@ -1,10 +1,9 @@
-﻿using Noggog;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO.Abstractions;
 
 namespace UniquePlayer
 {
-    public class TexturePaths 
+    public class TexturePaths
     {
         private readonly IFileSystem _fileSystem;
 

@@ -1,12 +1,11 @@
-﻿using System;
-using Xunit;
-using UniquePlayer;
-using System.IO.Abstractions.TestingHelpers;
-using System.Collections.Generic;
+﻿using Moq;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Skyrim;
-using Moq;
+using System.Collections.Generic;
+using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
+using UniquePlayer;
+using Xunit;
 
 namespace Tests
 {
