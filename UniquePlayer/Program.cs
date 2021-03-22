@@ -6,7 +6,8 @@ using Noggog;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO;
+using System.IO.Abstractions;
+using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -15,6 +16,24 @@ namespace UniquePlayer
 {
     public class Program
     {
+        private readonly IPatcherState<ISkyrimMod, ISkyrimModGetter> State;
+
+        private readonly ISkyrimMod PatchMod;
+
+        private readonly ILinkCache<ISkyrimMod, ISkyrimModGetter> LinkCache;
+
+        private readonly LoadOrder<IModListing<ISkyrimModGetter>> LoadOrder;
+
+        private readonly IFileSystem _fileSystem;
+
+        private readonly TexturePaths TexturePaths;
+
+        private readonly MeshPaths MeshPaths;
+
+        private readonly TextureSets TextureSets;
+
+        private readonly HeadParts HeadParts;
+
         static Lazy<Settings> Settings = null!;
 
         private static readonly Dictionary<string, string> BodyReferenceToBodyName = new()
@@ -24,6 +43,21 @@ namespace UniquePlayer
             { "CBBE Feet", "CBBE" },
             { "TBD - Reference - Default Body", "TBD" },
         };
+
+        public Program(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IFileSystem? fileSystem = null)
+        {
+            State = state;
+            LinkCache = state.LinkCache;
+            PatchMod = state.PatchMod;
+            LoadOrder = state.LoadOrder;
+
+            _fileSystem = fileSystem ?? new FileSystem();
+
+            TexturePaths = new TexturePaths(_fileSystem);
+            MeshPaths = new MeshPaths(_fileSystem);
+            TextureSets = new TextureSets(PatchMod, LinkCache, texturePaths: TexturePaths, fileSystem: _fileSystem);
+            HeadParts = new HeadParts(PatchMod, LinkCache, TextureSets, MeshPaths, _fileSystem);
+        }
 
         public static async Task<int> Main(string[] args)
         {
@@ -38,20 +72,17 @@ namespace UniquePlayer
                 .Run(args);
         }
 
-        private static void RunnabilityCheck(IRunnabilityState state)
+        public static void RunnabilityCheck(IRunnabilityState state)
         {
-            var dataPath = state.Settings.DataFolderPath;
-            if (Settings.Value.CustomBodyslideInstallPath)
-            {
-                dataPath = Settings.Value.BodySlideInstallPath;
-            }
-            BodySlidePaths(dataPath, out string outfitsPath, out string groupsPath);
-
-            if (!(Directory.Exists(outfitsPath) && Directory.Exists(groupsPath)))
-                throw new FileNotFoundException("Bodyslide installation not in default location, cannot proceed.");
+            new RunnabilityCheck(state, Settings.Value).Check();
         }
 
-        private static void BodySlidePaths(string dataPath, out string outfitsPath, out string groupsPath)
+        public static void RunPatch(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
+        {
+            new Program(state).RunPatch();
+        }
+
+        public static void BodySlidePaths(string dataPath, out string outfitsPath, out string groupsPath)
         {
             var bodySlidePath = dataPath + "\\CalienteTools\\BodySlide\\";
             outfitsPath = bodySlidePath + "SliderSets";
@@ -72,51 +103,18 @@ namespace UniquePlayer
             { Skyrim.Race.WoodElfRace, RaceCompatibility.Keyword.ActorProxyWoodElf },
         };
 
-        public static readonly Dictionary<FormKey, FormKey> replacementPlayableRacesDict = new();
+        public readonly Dictionary<FormKey, FormKey> replacementPlayableRacesDict = new();
 
-        public static readonly Dictionary<FormKey, FormKey> replacementHeadParts = new();
-        public static readonly HashSet<FormKey> inspectedHeadParts = new();
+        public readonly HashSet<IFormLinkGetter<INpcGetter>> presetCharacters = new();
 
-        public static readonly Dictionary<string, string> replacementTexturePathDict = new();
-        public static readonly Dictionary<FormKey, FormKey> replacementTextureSets = new();
-        public static readonly HashSet<string> inspectedTexturePaths = new();
-
-        public static readonly Dictionary<string, string> replacementMeshPathDict = new();
-        public static readonly HashSet<string> inspectedMeshPaths = new();
-
-        public static readonly HashSet<FormKey> presetCharacters = new();
-
-        public static readonly HashSet<string> seenDirectories = new();
+        public readonly HashSet<string> seenDirectories = new();
 
         public static readonly string[] meshSuffixesWithTriFiles = {
             "_1.nif",
             ".nif"
         };
 
-        /// <returns>setA.Intersect(setB).Count</returns>
-        private static int CountIntersect<T>(ISet<T> setA, ISet<T> setB)
-        {
-            if (setA.Count > setB.Count)
-                return CountIntersect(setB, setA);
-            return setA.Count(setB.Contains);
-        }
-
-        /// <summary>
-        /// Edits a path to a mesh file using Skyrim's mesh path rules.
-        /// </summary>
-        /// <returns>$"Meshes/{injectedPath}/..."</returns>
-        /// <param name="testPath">$"{injectedPath}/..."</param>
-        public static string MangleMeshesPath(string originalPath, string injectedPath, out string testPath)
-        {
-            originalPath = originalPath.Replace('/', '\\');
-            var indexOfMeshes = originalPath.IndexOf("Meshes\\", StringComparison.OrdinalIgnoreCase);
-            if (indexOfMeshes >= 0)
-                originalPath = originalPath[(indexOfMeshes + 7)..];
-            testPath = $"{injectedPath}\\{originalPath}";
-            return $"Meshes\\{testPath}";
-        }
-
-        public static void CopyAndModifyOutfitFiles(string dataPath)
+        public void CopyAndModifyOutfitFiles(string dataPath)
         {
             if (Settings.Value.CustomBodyslideInstallPath)
             {
@@ -143,10 +141,10 @@ namespace UniquePlayer
             }
 
             var outfitsData = (
-                from filePath in Directory.GetFiles(outfitsPath).AsParallel()
+                from filePath in _fileSystem.Directory.GetFiles(outfitsPath).AsParallel()
                 where filePath.EndsWith(".osp")
-                  && !filePath.EndsWith(outfitOutputFileName)
-                where File.Exists(filePath)
+&& !filePath.EndsWith(outfitOutputFileName)
+                where _fileSystem.File.Exists(filePath)
                 let doc = tryLoad(filePath)
                 where doc is not null
                 let sliderSets = doc.Element("SliderSetInfo")?.Elements("SliderSet")
@@ -184,7 +182,7 @@ namespace UniquePlayer
             {
                 var outfitPathElement = outfitData.Element("OutputPath");
                 if (outfitPathElement is null) continue;
-                outfitPathElement.Value = MangleMeshesPath(outfitPathElement.Value, "Player", out _);
+                outfitPathElement.Value = MeshPaths.MangleMeshesPath(outfitPathElement.Value, "Player", out _);
 
                 if (!BodyReferenceToBodyName.TryGetValue(oldOutfitName, out var bodyName))
                 {
@@ -199,7 +197,7 @@ namespace UniquePlayer
 
                     foreach (var (candidateBodyName, candidateSliderNames) in bodyNameToSliderNameSets)
                     {
-                        var matchCount = CountIntersect(sliderNames, candidateSliderNames);
+                        var matchCount = sliderNames.CountIntersect(candidateSliderNames);
 
                         if (matchCount > highestCount)
                         {
@@ -240,10 +238,10 @@ namespace UniquePlayer
             }
 
             var outfitGroups =
-                from filePath in Directory.GetFiles(groupsPath)//.AsParallel()
+                from filePath in _fileSystem.Directory.GetFiles(groupsPath) //.AsParallel()
                 where filePath.EndsWith(".xml")
                    && !filePath.EndsWith(groupOutputFileName)
-                where File.Exists(filePath)
+                where _fileSystem.File.Exists(filePath)
                 let doc = tryLoad(filePath)
                 where doc is not null
                 let outfitGroups2 = doc.Element("SliderGroups")?.Elements("Group")
@@ -301,14 +299,12 @@ namespace UniquePlayer
             sliderGroupDoc.Save(groupsPath + groupOutputFileName);
         }
 
-        public static void RunPatch(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
+        public void RunPatch()
         {
-            var outfitFilesTask = new Task(() => CopyAndModifyOutfitFiles(state.DataFolderPath));
+            var outfitFilesTask = new Task(() => CopyAndModifyOutfitFiles(State.DataFolderPath));
 
-            var linkCache = state.LinkCache;
-
-            var playableRaceFormList = RaceCompatibility.FormList.PlayableRaceList.Resolve(state.LinkCache);
-            var playableVampireRaceFormList = RaceCompatibility.FormList.PlayableVampireList.Resolve(state.LinkCache);
+            var playableRaceFormList = RaceCompatibility.FormList.PlayableRaceList.Resolve(LinkCache);
+            var playableVampireRaceFormList = RaceCompatibility.FormList.PlayableVampireList.Resolve(LinkCache);
 
             var playableRaceFormLinks = playableRaceFormList.ContainedFormLinks.Select(x => new FormLink<IRaceGetter>(x.FormKey)).ToList();
             var playableVampireRaceFormLinks = playableVampireRaceFormList.ContainedFormLinks.Select(x => new FormLink<IRaceGetter>(x.FormKey)).ToList();
@@ -321,210 +317,36 @@ namespace UniquePlayer
             var victimRaceFormKeys = playableRaceFormLinks.Select(x => x.FormKey.AsLinkGetter<IRaceGetter>()).Concat(playableVampireRaceFormLinks.Select(x => x.FormKey.AsLinkGetter<IRaceGetter>())).ToHashSet();
 
             var otherFormLists =
-                from x in state.LoadOrder.PriorityOrder.WinningOverrides<IFormListGetter>()
+                from x in LoadOrder.PriorityOrder.WinningOverrides<IFormListGetter>()
                 where !x.Equals(RaceCompatibility.FormList.PlayableRaceList)
                 && !x.Equals(RaceCompatibility.FormList.PlayableVampireList)
                 && x.ContainedFormLinks.Any(y => victimRaceFormKeys.Contains(y.FormKey.AsLink<IRaceGetter>()))
-                select state.PatchMod.FormLists.GetOrAddAsOverride(x);
+                select PatchMod.FormLists.GetOrAddAsOverride(x);
 
-            var modifiedPlayableRaceFormList = state.PatchMod.FormLists.GetOrAddAsOverride(playableRaceFormList);
-            var modifiedPlayableVampireRaceFormList = state.PatchMod.FormLists.GetOrAddAsOverride(playableVampireRaceFormList);
+            var modifiedPlayableRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableRaceFormList);
+            var modifiedPlayableVampireRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableVampireRaceFormList);
 
-            var texturesPath = state.DataFolderPath + "\\Textures\\";
-            var meshesPath = state.DataFolderPath + "\\Meshes\\";
-
-            string? changeTexturePath(string? path, ref bool changed)
-            {
-                if (path is null) return null;
-                if (inspectedTexturePaths.Contains(path)) return path;
-                if (replacementTexturePathDict.TryGetValue(path, out var newPath))
-                {
-                    changed = true;
-                    return newPath;
-                }
-
-                newPath = "Player\\Textures\\" + path;
-                if (File.Exists(texturesPath + newPath))
-                {
-                    replacementTexturePathDict.Add(path, newPath);
-                    changed = true;
-                    return newPath;
-                }
-                inspectedTexturePaths.Add(path);
-                return path;
-            }
-
-            string changeMeshPath(string path, ref bool changed)
-            {
-                //if (path is null) return null;
-                if (inspectedMeshPaths.Contains(path)) return path;
-                if (replacementMeshPathDict.TryGetValue(path, out var newPath))
-                {
-                    changed = true;
-                    return newPath;
-                }
-
-                newPath = MangleMeshesPath(path, "Player", out var testPath);
-
-                if (!File.Exists(meshesPath + testPath))
-                {
-                    inspectedMeshPaths.Add(path);
-                    return path;
-                }
-
-                replacementMeshPathDict.Add(path, newPath);
-                changed = true;
-
-                return newPath;
-            }
-
-            bool updateTextureSet(IFormLinkGetter<ITextureSetGetter> textureSetFormLink, IMajorRecordCommonGetter rec)
-            {
-                if (textureSetFormLink.IsNull) return false;
-                var textureSetFormKey = textureSetFormLink.FormKey;
-                if (replacementTextureSets.ContainsKey(textureSetFormKey)) return true;
-                if (!textureSetFormLink.TryResolve(state.LinkCache, out var txst))
-                {
-                    throw RecordException.Factory(new NullReferenceException($"Could not find referenced TXST {textureSetFormLink}"), rec);
-                }
-
-                var changed = false;
-                changeTexturePath(txst.Diffuse, ref changed);
-                changeTexturePath(txst.NormalOrGloss, ref changed);
-                changeTexturePath(txst.EnvironmentMaskOrSubsurfaceTint, ref changed);
-                changeTexturePath(txst.GlowOrDetailMap, ref changed);
-                changeTexturePath(txst.Height, ref changed);
-                changeTexturePath(txst.Environment, ref changed);
-                changeTexturePath(txst.Multilayer, ref changed);
-                changeTexturePath(txst.BacklightMaskOrSpecular, ref changed);
-
-                if (!changed) return false;
-
-                var newTxst = state.PatchMod.TextureSets.AddNew($"{txst.EditorID}_UniquePlayer");
-                newTxst.DeepCopyIn(txst, new TextureSet.TranslationMask(defaultOn: true)
-                {
-                    EditorID = false
-                });
-                replacementTextureSets.Add(textureSetFormKey, newTxst.FormKey);
-
-                newTxst.Diffuse = changeTexturePath(txst.Diffuse, ref changed);
-                newTxst.NormalOrGloss = changeTexturePath(txst.NormalOrGloss, ref changed);
-                newTxst.EnvironmentMaskOrSubsurfaceTint = changeTexturePath(txst.EnvironmentMaskOrSubsurfaceTint, ref changed);
-                newTxst.GlowOrDetailMap = changeTexturePath(txst.GlowOrDetailMap, ref changed);
-                newTxst.Height = changeTexturePath(txst.Height, ref changed);
-                newTxst.Environment = changeTexturePath(txst.Environment, ref changed);
-                newTxst.Multilayer = changeTexturePath(txst.Multilayer, ref changed);
-                newTxst.BacklightMaskOrSpecular = changeTexturePath(txst.BacklightMaskOrSpecular, ref changed);
-                return true;
-            }
-
-            void updateHeadPart(IFormLinkGetter<IHeadPartGetter> headPartItem, IMajorRecordCommonGetter race)
-            {
-                var headPartFormKey = headPartItem.FormKey;
-                if (replacementHeadParts.ContainsKey(headPartFormKey)) return;
-                if (inspectedHeadParts.Contains(headPartFormKey)) return;
-                var headPart = headPartItem.Resolve(state.LinkCache);
-                if (headPart == null) throw RecordException.Factory(new NullReferenceException($"Could not find referenced HDPT {headPartFormKey}"), race);
-
-                var changed = false;
-
-                if (!headPart.TextureSet.IsNull)
-                    changed |= updateTextureSet(headPart.TextureSet, headPart);
-
-                headPart.Parts.ForEach(x =>
-                {
-                    if (x.FileName != null) changeMeshPath(x.FileName, ref changed);
-                });
-
-                if (headPart.Model != null)
-                    changeMeshPath(headPart.Model.File, ref changed);
-
-                headPart.Model?.AlternateTextures?.ForEach(x =>
-                {
-                    changed |= updateTextureSet(x.NewTexture, headPart);
-                });
-
-                headPart.ExtraParts.ForEach(x =>
-                {
-                    updateHeadPart(x, headPart);
-                });
-
-                if (!changed)
-                {
-                    inspectedHeadParts.Add(headPartFormKey);
-                    return;
-                };
-
-                var newHeadPart = state.PatchMod.HeadParts.AddNew($"{headPart.EditorID}_UniquePlayer");
-                newHeadPart.DeepCopyIn(headPart, new HeadPart.TranslationMask(defaultOn: true)
-                {
-                    EditorID = false
-                });
-                // TODO duplicate headPart FormList and restrict to player only?
-
-                newHeadPart.Parts.ForEach(x =>
-                {
-                    if (x.FileName != null) x.FileName = changeMeshPath(x.FileName, ref changed);
-                });
-
-                if (newHeadPart.Model != null)
-                    newHeadPart.Model.File = changeMeshPath(newHeadPart.Model.File, ref changed);
-
-                newHeadPart.RemapLinks(replacementTextureSets);
-                replacementHeadParts.Add(headPartFormKey, newHeadPart.FormKey);
-            }
-
-            Race copyRace(IRaceGetter oldRace)
-            {
-                var newRace = state.PatchMod.Races.AddNew($"{oldRace.EditorID}_UniquePlayer");
-                newRace.DeepCopyIn(oldRace, new Race.TranslationMask(defaultOn: true)
-                {
-                    EditorID = false,
-                    ArmorRace = false
-                });
-                newRace.MorphRace.SetTo(oldRace);
-                replacementPlayableRacesDict.Add(oldRace.FormKey, newRace.FormKey);
-
-                var race = newRace;
-
-                race.HeadData?.NotNull().ForEach(headData =>
-                {
-                    headData.FaceDetails.NotNull().ForEach(x => updateTextureSet(x, race));
-
-                    headData.HeadParts.NotNull().ForEach(x => updateHeadPart(x.Head, oldRace));
-
-                    foreach (var item in headData.TintMasks)
-                    {
-                        var junk = false;
-                        item.FileName = changeTexturePath(item.FileName, ref junk);
-                    }
-
-                    presetCharacters.Add(headData.RacePresets.Select(x => x.FormKey));
-                });
-                race.RemapLinks(replacementTextureSets);
-                race.RemapLinks(replacementHeadParts);
-
-                return newRace;
-            }
+            var texturesPath = State.DataFolderPath + "\\Textures\\";
+            var meshesPath = State.DataFolderPath + "\\Meshes\\";
 
             Console.WriteLine("Creating new player-only races from existing playable races.");
             foreach (var (raceLink, vampireRaceLink) in playableRaceFormLinks.Zip(playableVampireRaceFormLinks))
             {
-                var race = raceLink.Resolve(linkCache);
-                var vampireRace = vampireRaceLink.Resolve(linkCache);
+                var race = raceLink.Resolve(LinkCache);
+                var vampireRace = vampireRaceLink.Resolve(LinkCache);
 
                 if (!race.Flags.HasFlag(Race.Flag.Playable))
                     throw RecordException.Factory(new Exception("Race in PlayableRaceList was not playable"), race);
 
-                var newRace = copyRace(race);
+                var newRace = CopyRace(race, texturesPath, meshesPath);
 
                 // add ActorProxy<race> for copies of vanilla races; it's assumed that either the non-vanilla race already has the appropriate ActorProxy<race>, or is happy with no ActorProxy<race>, and our copy should be the same.
                 if (vanillaRaceToActorProxyKeywords.TryGetValue(raceLink, out var actorProxyKeywordFormKey))
                     (newRace.Keywords ??= new()).Add(actorProxyKeywordFormKey);
 
-                var newVampireRace = copyRace(vampireRace);
+                var newVampireRace = CopyRace(vampireRace, texturesPath, meshesPath);
 
-                var modifiedRace = state.PatchMod.Races.GetOrAddAsOverride(race);
+                var modifiedRace = PatchMod.Races.GetOrAddAsOverride(race);
                 modifiedRace.Flags ^= Race.Flag.Playable;
                 modifiedRace.HeadData?.ForEach(x => x?.RacePresets.RemoveAll(x => true));
 
@@ -543,19 +365,17 @@ namespace UniquePlayer
             modifiedPlayableVampireRaceFormList.RemapLinks(replacementPlayableRacesDict);
 
             Console.WriteLine("Changing Player's race to our newly created player-only Race");
-            state.PatchMod.Npcs.GetOrAddAsOverride(Skyrim.Npc.Player.Resolve(state.LinkCache)).RemapLinks(replacementPlayableRacesDict);
+            PatchMod.Npcs.GetOrAddAsOverride(Skyrim.Npc.Player.Resolve(LinkCache)).RemapLinks(replacementPlayableRacesDict);
 
             foreach (var item in presetCharacters)
-            {
-                state.PatchMod.Npcs.GetOrAddAsOverride(linkCache.Resolve<INpcGetter>(item)).RemapLinks(replacementPlayableRacesDict);
-            }
+                PatchMod.Npcs.GetOrAddAsOverride(item.Resolve(LinkCache)).RemapLinks(replacementPlayableRacesDict);
 
             // TODO only do armor addons that are used by playable armor?
             Console.WriteLine("Creating new ArmorAddons that use player-specific meshes or editing existing ArmorAddons to support newly added races.");
 
-            var armorAddonAdditions = new Dictionary<FormKey, FormKey>();
+            var armorAddonAdditions = new Dictionary<IFormLinkGetter<IArmorAddonGetter>, IFormLinkGetter<IArmorAddonGetter>>();
 
-            foreach (var armorAddon in state.LoadOrder.PriorityOrder.WinningOverrides<IArmorAddonGetter>().Where(x => victimRaceFormKeys.Contains(x.Race) || x.AdditionalRaces.Any(y => victimRaceFormKeys.Contains(y))).ToList())
+            foreach (var armorAddon in LoadOrder.PriorityOrder.WinningOverrides<IArmorAddonGetter>().Where(x => victimRaceFormKeys.Contains(x.Race) || x.AdditionalRaces.Any(y => victimRaceFormKeys.Contains(y))).ToList())
             {
                 bool needsEdit = false;
                 var races = armorAddon.AdditionalRaces.Append(armorAddon.Race);
@@ -565,14 +385,14 @@ namespace UniquePlayer
                 void modelNeedsEdit(IModelGetter? model)
                 {
                     if (model is null) return;
-                    changeMeshPath(model.File, ref needsEdit);
-                    model.AlternateTextures?.ForEach(alternateTexture => needsEdit |= updateTextureSet(alternateTexture.NewTexture, armorAddon));
+                    MeshPaths.ChangeMeshPath(model.File, ref needsEdit, meshesPath);
+                    model.AlternateTextures?.ForEach(alternateTexture => needsEdit |= TextureSets.UpdateTextureSet(alternateTexture.NewTexture, texturesPath));
                 }
 
                 void applyModelEdit(Model? model)
                 {
                     if (model is null) return;
-                    model.File = changeMeshPath(model.File, ref needsEdit);
+                    model.File = MeshPaths.ChangeMeshPath(model.File, ref needsEdit, meshesPath);
                     // model.AlternateTextures covered by running RemapLinks at the top level.
                 }
 
@@ -581,12 +401,12 @@ namespace UniquePlayer
 
                 armorAddon.SkinTexture?.ForEach(x =>
                 {
-                    if (!x.IsNull) needsEdit |= updateTextureSet(x, armorAddon);
+                    if (!x.IsNull) needsEdit |= TextureSets.UpdateTextureSet(x, texturesPath);
                 });
 
                 if (needsEdit)
                 {
-                    var newArmorAddon = state.PatchMod.ArmorAddons.AddNew($"{armorAddon.EditorID}_UniquePlayer");
+                    var newArmorAddon = PatchMod.ArmorAddons.AddNew($"{armorAddon.EditorID}_UniquePlayer");
                     newArmorAddon.DeepCopyIn(armorAddon, new ArmorAddon.TranslationMask(defaultOn: true)
                     {
                         EditorID = false,
@@ -599,14 +419,14 @@ namespace UniquePlayer
                     newArmorAddon.FirstPersonModel?.ForEach(applyModelEdit);
                     newArmorAddon.WorldModel?.ForEach(applyModelEdit);
 
-                    newArmorAddon.RemapLinks(replacementTextureSets);
+                    newArmorAddon.RemapLinks(TextureSets.replacementTextureSets);
 
-                    armorAddonAdditions.Add(armorAddon.FormKey, newArmorAddon.FormKey);
+                    armorAddonAdditions.Add(armorAddon.AsLink(), newArmorAddon.AsLink());
 
                     // remove defaultRace from base armorAddons?
                     if (races.Contains(Skyrim.Race.DefaultRace) && false)
                     {
-                        var modifiedArmorAddon = state.PatchMod.ArmorAddons.GetOrAddAsOverride(armorAddon);
+                        var modifiedArmorAddon = PatchMod.ArmorAddons.GetOrAddAsOverride(armorAddon);
                         if (modifiedArmorAddon.Race.Equals(Skyrim.Race.DefaultRace))
                         {
                             var firstRace = modifiedArmorAddon.AdditionalRaces.First().FormKey;
@@ -620,23 +440,57 @@ namespace UniquePlayer
                     }
                 }
                 else
-                    state.PatchMod.ArmorAddons.GetOrAddAsOverride(armorAddon).AdditionalRaces.AddRange(replacementRaces);
+                    PatchMod.ArmorAddons.GetOrAddAsOverride(armorAddon).AdditionalRaces.AddRange(replacementRaces);
             }
 
             var armors =
-                from armor in state.LoadOrder.PriorityOrder.WinningOverrides<IArmorGetter>()
+                from armor in LoadOrder.PriorityOrder.WinningOverrides<IArmorGetter>()
                 where (!armor.MajorFlags.HasFlag(Armor.MajorFlag.NonPlayable))
                 && armor.TemplateArmor.IsNull
-                && armor.Armature.Any(y => armorAddonAdditions.ContainsKey(y.FormKey))
-                select state.PatchMod.Armors.GetOrAddAsOverride(armor);
+                && armor.Armature.Any(y => armorAddonAdditions.ContainsKey(y))
+                select PatchMod.Armors.GetOrAddAsOverride(armor);
 
             Console.WriteLine("Registering new ArmorAddons with Armors");
             foreach (var armor in armors)
                 foreach (var item in armor.Armature.ToList())
-                    if (armorAddonAdditions.TryGetValue(item.FormKey, out var value))
-                        armor.Armature.Insert(0, new FormLink<IArmorAddonGetter>(value));
+                    if (armorAddonAdditions.TryGetValue(item, out var value))
+                        armor.Armature.Insert(0, value);
 
             outfitFilesTask.Wait();
         }
+
+        public Race CopyRace(IRaceGetter oldRace, string texturesPath, string meshesPath)
+        {
+            var newRace = PatchMod.Races.AddNew($"{oldRace.EditorID}_UniquePlayer");
+            newRace.DeepCopyIn(oldRace, new Race.TranslationMask(defaultOn: true)
+            {
+                EditorID = false,
+                ArmorRace = false
+            });
+            newRace.MorphRace.SetTo(oldRace);
+            replacementPlayableRacesDict.Add(oldRace.FormKey, newRace.FormKey);
+
+            var race = newRace;
+
+            race.HeadData?.NotNull().ForEach(headData =>
+            {
+                headData.FaceDetails.NotNull().ForEach(x => TextureSets.UpdateTextureSet(x, texturesPath));
+
+                headData.HeadParts.NotNull().ForEach(x => HeadParts.UpdateHeadPart(x.Head, texturesPath, meshesPath));
+
+                foreach (var item in headData.TintMasks)
+                {
+                    var junk = false;
+                    item.FileName = TexturePaths.ChangeTexturePath(item.FileName, ref junk, texturesPath);
+                }
+
+                presetCharacters.Add(headData.RacePresets);
+            });
+            race.RemapLinks(TextureSets.replacementTextureSets);
+            race.RemapLinks(HeadParts.replacementHeadParts);
+
+            return newRace;
+        }
     }
+
 }
