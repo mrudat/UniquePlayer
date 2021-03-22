@@ -1,19 +1,19 @@
-using System.Collections.Generic;
-using System.IO.Abstractions.TestingHelpers;
-using System.Linq;
-using System.Text;
 using Moq;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Skyrim;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Abstractions.TestingHelpers;
+using System.Linq;
 using UniquePlayer;
 using Xunit;
 
 namespace Tests
 {
-    public class Tests
+    public class UpdateHeadParts_Tests
     {
-        public static readonly string TexturePath = @"Textures\";
-        public static readonly string MeshesPath = @"Meshes\";
+        public static readonly string TexturePath = "Textures";
+        public static readonly string MeshesPath = "Meshes";
 
         public static readonly ModKey MasterModKey = ModKey.FromNameAndExtension("Master.esm");
         public static readonly ModKey PatchModKey = ModKey.FromNameAndExtension("Patch.esp");
@@ -24,7 +24,8 @@ namespace Tests
         public static readonly FormKey PatchFormKey1 = PatchModKey.MakeFormKey(0x800);
 
         [Fact]
-        public static void TestUpdateHeadPartThrows() {
+        public static void TestUpdateHeadPartThrows()
+        {
             var patchMod = new Mock<ISkyrimMod>();
 
             var linkCache = new Mock<ILinkCache<ISkyrimMod, ISkyrimModGetter>>();
@@ -65,13 +66,13 @@ namespace Tests
 
             var oldHeadPart = masterMod.HeadParts.AddNew("oldHeadPart");
 
-            (oldHeadPart.Model ??= new()).File = MeshesPath + "mesh.nif";
+            (oldHeadPart.Model ??= new()).File = Path.Join(MeshesPath, "mesh.nif");
 
             var headPartFormLink = oldHeadPart.AsLink();
 
             var linkCache = masterMod.ToImmutableLinkCache();
 
-            var newMeshPath = MeshesPath + @"Player\mesh.nif";
+            var newMeshPath = Path.Join(MeshesPath, "Player", "mesh.nif");
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
                 { newMeshPath, new MockFileData("") }

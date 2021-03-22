@@ -1,12 +1,15 @@
-﻿using Noggog;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO.Abstractions;
 
 namespace UniquePlayer
 {
-    public class TexturePaths 
+    public class TexturePaths
     {
         private readonly IFileSystem _fileSystem;
+
+        private readonly IFile File;
+
+        private readonly IPath Path;
 
         public readonly HashSet<string> inspectedTexturePaths = new();
 
@@ -15,6 +18,9 @@ namespace UniquePlayer
         public TexturePaths(IFileSystem? fileSystem = null)
         {
             _fileSystem = fileSystem ?? new FileSystem();
+
+            File = _fileSystem.File;
+            Path = _fileSystem.Path;
         }
 
         public string? ChangeTexturePath(string? path, ref bool changed, string texturesPath)
@@ -27,8 +33,8 @@ namespace UniquePlayer
                 return newPath;
             }
 
-            newPath = "Player\\Textures\\" + path;
-            if (_fileSystem.File.Exists(texturesPath + newPath))
+            newPath = Path.Join("Player", "Textures", path);
+            if (File.Exists(Path.Join(texturesPath, newPath)))
             {
                 replacementTexturePathDict.Add(path, newPath);
                 changed = true;

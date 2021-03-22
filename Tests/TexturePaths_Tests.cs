@@ -1,19 +1,20 @@
-﻿using Xunit;
-using UniquePlayer;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions.TestingHelpers;
-using System.Collections.Generic;
+using UniquePlayer;
+using Xunit;
 
 namespace Tests
 {
     public class TexturePaths_Tests
     {
-        public static readonly string TexturePath = @"Textures\";
+        public static readonly string TexturePath = "Textures";
 
         public static readonly TheoryData<string?, string?, bool> ChangeTexturePathData = new()
         {
             { null, null, false },
             { "texture.dds", "texture.dds", false },
-            { "replaced.dds", @"Player\Textures\replaced.dds", true }
+            { "replaced.dds", Path.Join("Player", "Textures", "replaced.dds"), true }
         };
 
         [Theory]
@@ -21,7 +22,7 @@ namespace Tests
         public void TestChangeTexturePath(string? oldPath, string? expectedPath, bool expectedChanged)
         {
             TexturePaths program = new(new MockFileSystem(new Dictionary<string, MockFileData>{
-                { @"Textures\Player\Textures\replaced.dds", new("") },
+                { Path.Join("Textures","Player","Textures","replaced.dds"), new("") },
             }));
 
             bool changed = false;
