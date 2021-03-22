@@ -10,17 +10,17 @@ namespace Tests
 {
     public class CopyAndModifyOutfitFiles_Tests
     {
-        public static readonly string BodySlidePath = Path.Combine(Directory.GetCurrentDirectory(), "Tools", "BodySlide");
-        public static readonly string DataFolderPath = Path.Combine(Directory.GetCurrentDirectory(), "Data");
+        public static readonly string BodySlidePath = Path.Join(Directory.GetCurrentDirectory(), "Tools", "BodySlide");
+        public static readonly string DataFolderPath = Path.Join(Directory.GetCurrentDirectory(), "Data");
 
         [Fact]
         public void TestExplicitInstallPath()
         {
             var bodySlidePath = BodySlidePath;
 
-            var sliderSetPath = Path.Combine(bodySlidePath, "SliderSets");
+            var sliderSetPath = Path.Join(bodySlidePath, "SliderSets");
 
-            var sliderGroupPath = Path.Combine(bodySlidePath, "SliderGroups");
+            var sliderGroupPath = Path.Join(bodySlidePath, "SliderGroups");
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
                 { sliderSetPath, new MockDirectoryData() },
@@ -29,18 +29,18 @@ namespace Tests
 
             new CopyAndModifyOutfitFiles(BodySlidePath, DataFolderPath, fileSystem: fileSystem).Run();
 
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderSetPath, "UniquePlayer.osp")));
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderGroupPath, "UniquePlayer.xml")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderSetPath, "UniquePlayer.osp")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderGroupPath, "UniquePlayer.xml")));
         }
 
         [Fact]
         public void TestDefaultInstallPath()
         {
-            var bodySlidePath = Path.Combine(DataFolderPath, "CalienteTools", "BodySlide");
+            var bodySlidePath = Path.Join(DataFolderPath, "CalienteTools", "BodySlide");
 
-            var sliderSetPath = Path.Combine(bodySlidePath, "SliderSets");
+            var sliderSetPath = Path.Join(bodySlidePath, "SliderSets");
 
-            var sliderGroupPath = Path.Combine(bodySlidePath, "SliderGroups");
+            var sliderGroupPath = Path.Join(bodySlidePath, "SliderGroups");
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
                 { sliderSetPath, new MockDirectoryData() },
@@ -49,8 +49,8 @@ namespace Tests
 
             new CopyAndModifyOutfitFiles(null, DataFolderPath, fileSystem: fileSystem).Run();
 
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderSetPath, "UniquePlayer.osp")));
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderGroupPath, "UniquePlayer.xml")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderSetPath, "UniquePlayer.osp")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderGroupPath, "UniquePlayer.xml")));
         }
 
         [Fact]
@@ -58,20 +58,20 @@ namespace Tests
         {
             var bodySlidePath = BodySlidePath;
 
-            var sliderSetPath = Path.Combine(bodySlidePath, "SliderSets");
+            var sliderSetPath = Path.Join(bodySlidePath, "SliderSets");
 
-            var sliderGroupPath = Path.Combine(bodySlidePath, "SliderGroups");
+            var sliderGroupPath = Path.Join(bodySlidePath, "SliderGroups");
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
                 { sliderSetPath, new MockDirectoryData() },
-                { Path.Combine(sliderSetPath, "TestOutfit.osp"), new MockFileData("invalid outfit file gets skipped") },
+                { Path.Join(sliderSetPath, "TestOutfit.osp"), new MockFileData("invalid outfit file gets skipped") },
                 { sliderGroupPath, new MockDirectoryData() },
             });
 
             new CopyAndModifyOutfitFiles(BodySlidePath, DataFolderPath, fileSystem: fileSystem).Run();
 
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderSetPath, "UniquePlayer.osp")));
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderGroupPath, "UniquePlayer.xml")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderSetPath, "UniquePlayer.osp")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderGroupPath, "UniquePlayer.xml")));
         }
 
         [Fact]
@@ -79,20 +79,20 @@ namespace Tests
         {
             var bodySlidePath = BodySlidePath;
 
-            var sliderSetPath = Path.Combine(bodySlidePath, "SliderSets");
+            var sliderSetPath = Path.Join(bodySlidePath, "SliderSets");
 
-            var sliderGroupPath = Path.Combine(bodySlidePath, "SliderGroups");
+            var sliderGroupPath = Path.Join(bodySlidePath, "SliderGroups");
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
                 { sliderSetPath, new MockDirectoryData() },
-                { Path.Combine(sliderGroupPath, "TestOutfit.xml"), new MockFileData("invalid group file gets skipped") },
+                { Path.Join(sliderGroupPath, "TestOutfit.xml"), new MockFileData("invalid group file gets skipped") },
                 { sliderGroupPath, new MockDirectoryData() },
             });
 
             new CopyAndModifyOutfitFiles(BodySlidePath, DataFolderPath, fileSystem: fileSystem).Run();
 
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderSetPath, "UniquePlayer.osp")));
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderGroupPath, "UniquePlayer.xml")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderSetPath, "UniquePlayer.osp")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderGroupPath, "UniquePlayer.xml")));
         }
 
         [Fact]
@@ -100,9 +100,9 @@ namespace Tests
         {
             var bodySlidePath = BodySlidePath;
 
-            var sliderSetPath = Path.Combine(bodySlidePath, "SliderSets");
+            var sliderSetPath = Path.Join(bodySlidePath, "SliderSets");
 
-            var sliderGroupPath = Path.Combine(bodySlidePath, "SliderGroups");
+            var sliderGroupPath = Path.Join(bodySlidePath, "SliderGroups");
 
             var originalOutfit = new XDocument(
                 new XDeclaration("1.0", "utf-8", "yes"),
@@ -110,21 +110,21 @@ namespace Tests
                     new XAttribute("version", "1"),
                     new XElement("SliderSet",
                         new XAttribute("name", "originalOutfit"),
-                        new XElement("OutputPath", Path.Combine("meshes", "originalOutfit"))
+                        new XElement("OutputPath", Path.Join("meshes", "originalOutfit"))
                         ))
             ).ToString();
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
-                { Path.Combine(sliderSetPath, "TestOutfit.osp"), new MockFileData(originalOutfit) },
+                { Path.Join(sliderSetPath, "TestOutfit.osp"), new MockFileData(originalOutfit) },
                 { sliderGroupPath, new MockDirectoryData() },
             });
 
             new CopyAndModifyOutfitFiles(BodySlidePath, DataFolderPath, fileSystem: fileSystem).Run();
 
-            var outputOutfitsPath = Path.Combine(sliderSetPath, "UniquePlayer.osp");
+            var outputOutfitsPath = Path.Join(sliderSetPath, "UniquePlayer.osp");
 
             Assert.True(fileSystem.FileExists(outputOutfitsPath));
-            Assert.True(fileSystem.FileExists(Path.Combine(sliderGroupPath, "UniquePlayer.xml")));
+            Assert.True(fileSystem.FileExists(Path.Join(sliderGroupPath, "UniquePlayer.xml")));
 
             using var file = fileSystem.File.OpenRead(outputOutfitsPath);
 
@@ -139,13 +139,16 @@ namespace Tests
             declaration.Encoding.Should().Be("utf-8");
             declaration.Standalone.Should().Be("yes");
 
+            Path.TrimEndingDirectorySeparator("");
+            Path.GetPathRoot("");
+
             outputOutfits
                 .Should().HaveRoot("SliderSetInfo")
                 .Which.Should().HaveAttribute("version", "1")
                 .And.HaveElement("SliderSet")
                 .Which.Should().HaveAttribute("name", "originalOutfit (unknown) (Unique Player)")
                 .And.HaveElement("OutputPath")
-                .Which.Should().HaveValue(Path.Combine("Meshes", "Player", "originalOutfit"));
+                .Which.Should().HaveValue(Path.Join("Meshes", "Player", "originalOutfit"));
         }
 
     }

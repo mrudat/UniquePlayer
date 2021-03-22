@@ -2,6 +2,7 @@ using Moq;
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.Skyrim;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
 using UniquePlayer;
@@ -65,13 +66,13 @@ namespace Tests
 
             var oldHeadPart = masterMod.HeadParts.AddNew("oldHeadPart");
 
-            (oldHeadPart.Model ??= new()).File = MeshesPath + "mesh.nif";
+            (oldHeadPart.Model ??= new()).File = Path.Join(MeshesPath, "mesh.nif");
 
             var headPartFormLink = oldHeadPart.AsLink();
 
             var linkCache = masterMod.ToImmutableLinkCache();
 
-            var newMeshPath = MeshesPath + @"Player\mesh.nif";
+            var newMeshPath = Path.Join(MeshesPath, "Player", "mesh.nif");
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
                 { newMeshPath, new MockFileData("") }

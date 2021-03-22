@@ -11,14 +11,23 @@ namespace UniquePlayer
     public class CopyAndModifyOutfitFiles
     {
         private readonly IFileSystem _fileSystem;
-
+        private readonly MeshPaths MeshPaths;
+        private readonly IFile File;
+        private readonly IDirectory Directory;
+        private readonly System.IO.Abstractions.IPath Path;
         private readonly string BodySlideInstallPath;
 
-        public CopyAndModifyOutfitFiles(string? bodySlidePath, string dataFolderPath, IFileSystem? fileSystem = null)
+        public CopyAndModifyOutfitFiles(string? bodySlidePath, string dataFolderPath, MeshPaths? meshPaths = null, IFileSystem? fileSystem = null)
         {
             _fileSystem = fileSystem ?? new FileSystem();
 
-            BodySlideInstallPath = bodySlidePath ?? _fileSystem.Path.Join(dataFolderPath, "CalienteTools", "BodySlide");
+            MeshPaths = meshPaths ?? new MeshPaths(_fileSystem);
+
+            File = _fileSystem.File;
+            Directory = _fileSystem.Directory;
+            Path = _fileSystem.Path;
+
+            BodySlideInstallPath = bodySlidePath ?? Path.Join(dataFolderPath, "CalienteTools", "BodySlide");
         }
 
         private static readonly Dictionary<string, string> BodyReferenceToBodyName = new()
@@ -29,11 +38,11 @@ namespace UniquePlayer
             { "TBD - Reference - Default Body", "TBD" },
         };
 
-        XDocument? tryLoad(string path)
+        XDocument? TryLoad(string path)
         {
             try
             {
-                using var file = _fileSystem.File.OpenRead(path);
+                using var file = File.OpenRead(path);
                 return XDocument.Load(file, LoadOptions.PreserveWhitespace);
             }
             catch (Exception e)
@@ -45,10 +54,10 @@ namespace UniquePlayer
 
         public void Run()
         {
-            var outfitsPath = _fileSystem.Path.Join(BodySlideInstallPath, "SliderSets");
-            var groupsPath = _fileSystem.Path.Join(BodySlideInstallPath, "SliderGroups");
+            var outfitsPath = Path.Join(BodySlideInstallPath, "SliderSets");
+            var groupsPath = Path.Join(BodySlideInstallPath, "SliderGroups");
 
-            if (!(_fileSystem.Directory.Exists(outfitsPath) && _fileSystem.Directory.Exists(groupsPath)))
+            if (!(Directory.Exists(outfitsPath) && Directory.Exists(groupsPath)))
             {
                 Console.WriteLine("Bodyslide installation not found, cannot create modified outfits.");
                 return;
@@ -60,11 +69,11 @@ namespace UniquePlayer
             var oldToNewOutfitNames = new Dictionary<string, string>();
 
             var outfitsData = (
-                from filePath in _fileSystem.Directory.GetFiles(outfitsPath).AsParallel()
+                from filePath in Directory.GetFiles(outfitsPath).AsParallel()
                 where filePath.EndsWith(".osp")
                    && !filePath.EndsWith(outfitOutputFileName)
-                   && _fileSystem.File.Exists(filePath)
-                let doc = tryLoad(filePath)
+                   && File.Exists(filePath)
+                let doc = TryLoad(filePath)
                 where doc is not null
                 let sliderSets = doc.Element("SliderSetInfo")?.Elements("SliderSet")
                 where sliderSets is not null
@@ -157,11 +166,11 @@ namespace UniquePlayer
             }
 
             var outfitGroups =
-                from filePath in _fileSystem.Directory.GetFiles(groupsPath) //.AsParallel()
+                from filePath in Directory.GetFiles(groupsPath) //.AsParallel()
                 where filePath.EndsWith(".xml")
                    && !filePath.EndsWith(groupOutputFileName)
-                   && _fileSystem.File.Exists(filePath)
-                let doc = tryLoad(filePath)
+                   && File.Exists(filePath)
+                let doc = TryLoad(filePath)
                 where doc is not null
                 let outfitGroups2 = doc.Element("SliderGroups")?.Elements("Group")
                 where outfitGroups2 is not null
@@ -214,7 +223,7 @@ namespace UniquePlayer
             foreach (var (bodyName, uniquePlayerOutfitsForBodyName) in uniquePlayerOutfits)
                 sliderGroups.Add(MakeSliderGroup(uniquePlayerOutfitsForBodyName, $"Unique Player ({bodyName})"));
 
-            void SaveDoc(string path, string file, XDocument doc) => doc.Save(_fileSystem.File.OpenWrite(_fileSystem.Path.Combine(path, file)));
+            void SaveDoc(string path, string file, XDocument doc) => doc.Save(File.OpenWrite(Path.Join(path, file)));
 
             // TODO if no data found, don't emit anything?
             SaveDoc(outfitsPath, outfitOutputFileName, outfitsDoc);

@@ -24,7 +24,7 @@ namespace UniquePlayer
         private readonly LoadOrder<IModListing<ISkyrimModGetter>> LoadOrder;
 
         private readonly IFileSystem _fileSystem;
-
+        private readonly System.IO.Abstractions.IPath Path;
         private readonly TexturePaths TexturePaths;
 
         private readonly MeshPaths MeshPaths;
@@ -44,6 +44,8 @@ namespace UniquePlayer
             LoadOrder = state.LoadOrder;
 
             _fileSystem = fileSystem ?? new FileSystem();
+
+            Path = _fileSystem.Path;
 
             TexturePaths = new TexturePaths(_fileSystem);
             MeshPaths = new MeshPaths(_fileSystem);
@@ -95,7 +97,7 @@ namespace UniquePlayer
 
         public void RunPatch()
         {
-            var outfitFilesTask = new Task(() => new CopyAndModifyOutfitFiles(Settings.Value.GetBodySlideInstallPath(), State.DataFolderPath, _fileSystem).Run());
+            var outfitFilesTask = new Task(() => new CopyAndModifyOutfitFiles(Settings.Value.GetBodySlideInstallPath(), State.DataFolderPath, fileSystem: _fileSystem).Run());
 
             var playableRaceFormList = RaceCompatibility.FormList.PlayableRaceList.Resolve(LinkCache);
             var playableVampireRaceFormList = RaceCompatibility.FormList.PlayableVampireList.Resolve(LinkCache);
@@ -120,8 +122,8 @@ namespace UniquePlayer
             var modifiedPlayableRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableRaceFormList);
             var modifiedPlayableVampireRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableVampireRaceFormList);
 
-            var texturesPath = State.DataFolderPath + "\\Textures\\";
-            var meshesPath = State.DataFolderPath + "\\Meshes\\";
+            var texturesPath = Path.Join(State.DataFolderPath, "Textures");
+            var meshesPath = Path.Join(State.DataFolderPath, "Meshes");
 
             Console.WriteLine("Creating new player-only races from existing playable races.");
             foreach (var (raceLink, vampireRaceLink) in playableRaceFormLinks.Zip(playableVampireRaceFormLinks))
