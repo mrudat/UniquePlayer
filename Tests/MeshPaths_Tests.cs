@@ -10,12 +10,53 @@ namespace Tests
     {
         public static readonly string MeshesPath = "Meshes";
 
+        public class RemoveMeshesPathData : TheoryData<string, string>
+        {
+            public RemoveMeshesPathData()
+            {
+                List<string> suffixPaths = new()
+                {
+                    "",
+                    "path",
+                    "mesh.nif",
+                    Path.Join("path", "mesh.nif")
+                };
+
+                foreach (var suffixPath in suffixPaths)
+                    Add(suffixPath, suffixPath);
+
+                suffixPaths.Add(Path.Join("Player", "Meshes", "path", "mesh.nif"));
+
+                string[] prefixPaths = new[] {
+                    "",
+                    "Player",
+                    "Other"
+                };
+                foreach (var prefixPath in prefixPaths)
+                    foreach (var suffixPath in suffixPaths)
+                        Add(Path.Join(prefixPath, MeshesPath, suffixPath), suffixPath);
+            }
+        }
+
+        [Theory]
+        [ClassData(typeof(RemoveMeshesPathData))]
+        public void TestRemoveMeshesPath(string originalPath, string expectedPath)
+        {
+            var meshPaths = new MeshPaths();
+
+            var newPath = meshPaths.RemoveMeshesPath(originalPath);
+            Assert.Equal(expectedPath, newPath);
+        }
+
+
         public class MangleMeshesPathData : TheoryData<string, string, string, string>
         {
             public MangleMeshesPathData()
             {
-                foreach (var injectedPath in new[] { "Player", Path.Join("Player", MeshesPath), "Other" })
-                    foreach (var originalPath in new[] { Path.Join(MeshesPath, "mesh.nif"), "mesh.nif" })
+                string[] injectedPaths = new[] { "Player", Path.Join("Player", MeshesPath), "Other" };
+                string[] originalPaths = new[] { Path.Join(MeshesPath, "mesh.nif"), "mesh.nif" };
+                foreach (var injectedPath in injectedPaths)
+                    foreach (var originalPath in originalPaths)
                         Add(originalPath, injectedPath, Path.Join(MeshesPath, injectedPath, "mesh.nif"), Path.Join(injectedPath, "mesh.nif"));
             }
         }
