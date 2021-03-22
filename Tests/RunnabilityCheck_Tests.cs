@@ -73,9 +73,6 @@ namespace Tests
                 BodySlideInstallPath = bodySlideInstallPath,
             };
 
-            // FIXME should not add this to the configured path, only the default!
-            bodySlideInstallPath = Path.Join(bodySlideInstallPath, "CalienteTools", "BodySlide");
-
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
                 { Path.Join(bodySlideInstallPath, "SliderSets"), new MockDirectoryData() },
                 { Path.Join(bodySlideInstallPath, "SliderGroups"), new MockDirectoryData() }
