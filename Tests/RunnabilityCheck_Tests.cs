@@ -45,7 +45,7 @@ namespace Tests
             var state = new RunnabilityState(checkRunnability, null!);
             Settings settings = new();
 
-            var dataFolderPath = @"C:\Program Files (x86)\Steam\steamapps\common\Skyrim\Data\";
+            var dataFolderPath = @"Program Files (x86)\Steam\steamapps\common\Skyrim\Data\";
 
             checkRunnability.DataFolderPath = dataFolderPath;
 
@@ -65,7 +65,7 @@ namespace Tests
             CheckRunnability checkRunnability = new();
             var state = new RunnabilityState(checkRunnability, null!);
 
-            var bodySlideInstallPath = @"C:\where\bodyslide\and\outfitstudio\are\installed\";
+            var bodySlideInstallPath = @"where\bodyslide\and\outfitstudio\are\installed\";
 
             Settings settings = new()
             {
