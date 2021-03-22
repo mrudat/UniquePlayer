@@ -45,15 +45,15 @@ namespace Tests
             var state = new RunnabilityState(checkRunnability, null!);
             Settings settings = new();
 
-            var dataFolderPath = @"C:\Program Files (x86)\Steam\steamapps\common\Skyrim\Data\";
+            var dataFolderPath = Path.Join(Directory.GetCurrentDirectory(), "Program Files (x86)", "Steam", "steamapps", "common", "Skyrim", "Data");
 
             checkRunnability.DataFolderPath = dataFolderPath;
 
-            var bodySlideInstallPath = dataFolderPath + @"CalienteTools\BodySlide\";
+            var bodySlideInstallPath = Path.Join(dataFolderPath, "CalienteTools", "BodySlide");
 
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
-                { bodySlideInstallPath + @"SliderSets\", new MockDirectoryData() },
-                { bodySlideInstallPath + @"SliderGroups\", new MockDirectoryData() }
+                { Path.Join(bodySlideInstallPath, "SliderSets"), new MockDirectoryData() },
+                { Path.Join(bodySlideInstallPath, "SliderGroups"), new MockDirectoryData() }
             });
 
             new RunnabilityCheck(state, settings, fileSystem).Check();
@@ -65,7 +65,7 @@ namespace Tests
             CheckRunnability checkRunnability = new();
             var state = new RunnabilityState(checkRunnability, null!);
 
-            var bodySlideInstallPath = @"C:\where\bodyslide\and\outfitstudio\are\installed\";
+            var bodySlideInstallPath = Path.Join(Directory.GetCurrentDirectory(), "where", "bodyslide", "and", "outfitstudio", "are", "installed");
 
             Settings settings = new()
             {
@@ -73,12 +73,9 @@ namespace Tests
                 BodySlideInstallPath = bodySlideInstallPath,
             };
 
-            // FIXME should not add this to the configured path, only the default!
-            bodySlideInstallPath += @"CalienteTools\BodySlide\";
-
             var fileSystem = new MockFileSystem(new Dictionary<string, MockFileData>() {
-                { bodySlideInstallPath + @"SliderSets\", new MockDirectoryData() },
-                { bodySlideInstallPath + @"SliderGroups\", new MockDirectoryData() }
+                { Path.Join(bodySlideInstallPath, "SliderSets"), new MockDirectoryData() },
+                { Path.Join(bodySlideInstallPath, "SliderGroups"), new MockDirectoryData() }
             });
 
             new RunnabilityCheck(state, settings, fileSystem).Check();

@@ -6,8 +6,8 @@ using Noggog;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.IO.Abstractions;
-using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -82,11 +82,11 @@ namespace UniquePlayer
             new Program(state).RunPatch();
         }
 
-        public static void BodySlidePaths(string dataPath, out string outfitsPath, out string groupsPath)
+        public static void BodySlidePaths(string dataPath, string? bodySlidePath, out string outfitsPath, out string groupsPath)
         {
-            var bodySlidePath = dataPath + "\\CalienteTools\\BodySlide\\";
-            outfitsPath = bodySlidePath + "SliderSets";
-            groupsPath = bodySlidePath + "SliderGroups";
+            bodySlidePath ??= Path.Join(dataPath, "CalienteTools", "BodySlide");
+            outfitsPath = Path.Join(bodySlidePath, "SliderSets");
+            groupsPath = Path.Join(bodySlidePath, "SliderGroups");
         }
 
         public static readonly Dictionary<IFormLinkGetter<IRaceGetter>, IFormLinkGetter<IKeywordGetter>> vanillaRaceToActorProxyKeywords = new()
@@ -116,11 +116,7 @@ namespace UniquePlayer
 
         public void CopyAndModifyOutfitFiles(string dataPath)
         {
-            if (Settings.Value.CustomBodyslideInstallPath)
-            {
-                dataPath = Settings.Value.BodySlideInstallPath;
-            }
-            BodySlidePaths(dataPath, out string outfitsPath, out string groupsPath);
+            BodySlidePaths(dataPath, Settings.Value.CustomBodyslideInstallPath ? Settings.Value.BodySlideInstallPath : null, out string outfitsPath, out string groupsPath);
 
             var outfitOutputFileName = "\\UniquePlayer.osp";
             var groupOutputFileName = "\\UniquePlayer.xml";

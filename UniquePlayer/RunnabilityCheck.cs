@@ -23,15 +23,13 @@ namespace UniquePlayer
 
         public void Check()
         {
-            var dataPath = State.Settings.DataFolderPath;
-            if (Settings.CustomBodyslideInstallPath)
-            {
-                dataPath = Settings.BodySlideInstallPath;
-            }
-            Program.BodySlidePaths(dataPath, out string outfitsPath, out string groupsPath);
+            Program.BodySlidePaths(State.Settings.DataFolderPath, Settings.CustomBodyslideInstallPath ? Settings.BodySlideInstallPath : null, out string outfitsPath, out string groupsPath);
 
-            if (!(_fileSystem.Directory.Exists(outfitsPath) && _fileSystem.Directory.Exists(groupsPath)))
-                throw new FileNotFoundException("Bodyslide installation not in default location, cannot proceed.");
+            if (!_fileSystem.Directory.Exists(outfitsPath))
+                throw new FileNotFoundException("Bodyslide installation not in default location, cannot proceed.", outfitsPath);
+
+            if (!_fileSystem.Directory.Exists(groupsPath))
+                throw new FileNotFoundException("Bodyslide installation not in default location, cannot proceed.", groupsPath);
         }
     }
 
