@@ -63,3 +63,22 @@ jobs:
         CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
       with:
         coverageLocations: "**/coverage.info:lcov"
+
+  release:
+    needs: [ coverage, todo ]
+    name: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v2
+      - uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - run: npx semantic-release@17
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

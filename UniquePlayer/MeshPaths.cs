@@ -59,40 +59,36 @@ namespace UniquePlayer
             return Path.Join("Meshes", testPath);
         }
 
+        private static bool IsMeshes(string victim)
+        {
+            return victim.Equals("Meshes", StringComparison.OrdinalIgnoreCase);
+        }
+
         public string RemoveMeshesPath(string originalPath)
         {
             // FIXME a version of this that ignores the filesystem.
-            var directory = Path.GetDirectoryName(originalPath);
-            if (directory.Length == 0) return originalPath;
+            if (originalPath == "") return originalPath;
+            var originalPathComponents = DirectoryInfo.FromDirectoryName(originalPath);
 
-            var fileName = Path.GetFileName(originalPath);
-
-            if (directory.Equals("Meshes", StringComparison.OrdinalIgnoreCase)) return fileName;
-
-            var originalPathComponents = DirectoryInfo.FromDirectoryName(directory);
-
-            int meshesDir = 0;
+            bool hasMeshes = false;
 
             Stack<string> components = new();
 
-            var rootName = originalPathComponents.Root.Name;
             var cwd = Directory.GetCurrentDirectory();
 
             for (var dir = originalPathComponents; dir != null; dir = dir.Parent)
             {
-                if (dir.Name == rootName) break; // eh. this is fine.
-                meshesDir++;
                 if (dir.FullName == cwd) break; // oh god, why?
-                if (dir.Name.Equals("Meshes", StringComparison.OrdinalIgnoreCase))
-                    meshesDir = 1;
+                if (IsMeshes(dir.Name))
+                    hasMeshes = true;
                 components.Push(dir.Name);
             }
 
-            if (meshesDir != components.Count)
-                for (int i = meshesDir; i > 0; i--)
-                    components.Pop();
+            if (hasMeshes)
+                while(components.Count > 0)
+                    if (IsMeshes(components.Pop())) break;
 
-            return Path.Join(Path.Combine(components.ToArray()), fileName);
+            return Path.Combine(components.ToArray());
         }
 
     }
