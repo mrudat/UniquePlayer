@@ -10,6 +10,11 @@ using System.IO.Abstractions;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Mutagen.Bethesda.Plugins;
+using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Exceptions;
+using Mutagen.Bethesda.Plugins.Order;
+using Mutagen.Bethesda.Plugins.Records;
 
 namespace UniquePlayer
 {
@@ -21,7 +26,7 @@ namespace UniquePlayer
 
         private readonly ILinkCache<ISkyrimMod, ISkyrimModGetter> LinkCache;
 
-        private readonly LoadOrder<IModListing<ISkyrimModGetter>> LoadOrder;
+        private readonly ILoadOrder<IModListing<ISkyrimModGetter>> LoadOrder;
 
         private readonly IFileSystem _fileSystem;
         private readonly System.IO.Abstractions.IPath Path;

@@ -1,4 +1,5 @@
 using System.CodeDom.Compiler;
+using Mutagen.Bethesda.Plugins;
 
 namespace Mutagen.Bethesda.FormKeys.SkyrimSE
 {

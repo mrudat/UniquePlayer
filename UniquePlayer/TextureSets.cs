@@ -3,6 +3,10 @@ using Mutagen.Bethesda.Skyrim;
 using System;
 using System.Collections.Generic;
 using System.IO.Abstractions;
+using Mutagen.Bethesda.Plugins;
+using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Exceptions;
+using Mutagen.Bethesda.Plugins.Records;
 
 namespace UniquePlayer
 {

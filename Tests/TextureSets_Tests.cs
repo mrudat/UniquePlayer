@@ -5,6 +5,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions.TestingHelpers;
 using System.Linq;
+using Mutagen.Bethesda.Plugins;
+using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Exceptions;
 using UniquePlayer;
 using Xunit;
 
@@ -42,7 +45,7 @@ namespace Tests
                 EditorID = "oldTextureSet",
             };
 
-            linkCache.Setup(x => x.TryResolve<ITextureSetGetter>(textureSetFormKey, out oldTextureSet)).Returns(true);
+            linkCache.Setup(x => x.TryResolve<ITextureSetGetter>(textureSetFormKey, out oldTextureSet, ResolveTarget.Winner)).Returns(true);
 
             TextureSets program = new(patchMod.Object, linkCache.Object);
 
@@ -73,7 +76,7 @@ namespace Tests
                 Diffuse = "replaced_d.dds",
             };
 
-            linkCache.Setup(x => x.TryResolve<ITextureSetGetter>(textureSetFormKey, out oldTextureSet)).Returns(true);
+            linkCache.Setup(x => x.TryResolve<ITextureSetGetter>(textureSetFormKey, out oldTextureSet, ResolveTarget.Winner)).Returns(true);
 
             var patchMod = new SkyrimMod(PatchModKey, SkyrimRelease.SkyrimSE);
 
