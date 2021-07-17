@@ -112,12 +112,12 @@ namespace UniquePlayer
 
             var victimRaceFormKeys = playableRaceFormLinks.Select(x => x.FormKey.AsLinkGetter<IRaceGetter>()).Concat(playableVampireRaceFormLinks.Select(x => x.FormKey.AsLinkGetter<IRaceGetter>())).ToHashSet();
 
-            var otherFormLists =
+            var otherFormLists = (
                 from x in LoadOrder.PriorityOrder.WinningOverrides<IFormListGetter>()
                 where !x.Equals(RaceCompatibility.FormList.PlayableRaceList)
                 && !x.Equals(RaceCompatibility.FormList.PlayableVampireList)
                 && x.ContainedFormLinks.Any(y => victimRaceFormKeys.Contains(y.FormKey.AsLink<IRaceGetter>()))
-                select PatchMod.FormLists.GetOrAddAsOverride(x);
+                select PatchMod.FormLists.GetOrAddAsOverride(x)).ToList();
 
             var modifiedPlayableRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableRaceFormList);
             var modifiedPlayableVampireRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableVampireRaceFormList);
