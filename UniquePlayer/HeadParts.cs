@@ -1,4 +1,8 @@
 ﻿using Mutagen.Bethesda;
+using Mutagen.Bethesda.Plugins;
+using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Exceptions;
+using Mutagen.Bethesda.Plugins.Records;
 using Mutagen.Bethesda.Skyrim;
 using Noggog;
 using System;
@@ -71,10 +75,13 @@ namespace UniquePlayer
                 };
 
                 var newHeadPart = PatchMod.HeadParts.AddNew($"{headPart.EditorID}_UniquePlayer");
-                newHeadPart.DeepCopyIn(headPart, new HeadPart.TranslationMask(defaultOn: true)
+
+                newHeadPart.DeepCopyIn(headPart, out var foo, new HeadPart.TranslationMask(defaultOn: true)
                 {
                     EditorID = false
                 });
+                if (foo.IsInError() && foo.Overall is Exception e) throw e;
+                
                 // TODO duplicate headPart FormList and restrict to player only?
 
                 newHeadPart.Parts.ForEach(x =>
@@ -90,7 +97,7 @@ namespace UniquePlayer
             }
             catch (Exception e)
             {
-                throw RecordException.Factory(e, headPart);
+                throw RecordException.Enrich(e, headPart);
             }
         }
     }
