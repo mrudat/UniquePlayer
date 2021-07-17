@@ -1,5 +1,8 @@
 using Moq;
 using Mutagen.Bethesda;
+using Mutagen.Bethesda.Plugins;
+using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Exceptions;
 using Mutagen.Bethesda.Skyrim;
 using System.Collections.Generic;
 using System.IO;

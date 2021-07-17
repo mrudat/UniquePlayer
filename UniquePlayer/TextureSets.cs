@@ -1,4 +1,7 @@
 ﻿using Mutagen.Bethesda;
+using Mutagen.Bethesda.Plugins;
+using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Exceptions;
 using Mutagen.Bethesda.Skyrim;
 using System;
 using System.Collections.Generic;
@@ -51,10 +54,11 @@ namespace UniquePlayer
                 }
 
                 var newTxst = PatchMod.TextureSets.AddNew($"{txst.EditorID}_UniquePlayer");
-                newTxst.DeepCopyIn(txst, new TextureSet.TranslationMask(defaultOn: true)
+                newTxst.DeepCopyIn(txst, out var ex, new TextureSet.TranslationMask(defaultOn: true)
                 {
                     EditorID = false
                 });
+                if (ex.Overall is Exception e) throw e;
                 replacementTextureSets.Add(textureSetFormKey, newTxst.FormKey);
 
                 newTxst.Diffuse = TexturePaths.ChangeTexturePath(txst.Diffuse, ref changed, texturesPath);
@@ -69,7 +73,7 @@ namespace UniquePlayer
             }
             catch (Exception e)
             {
-                throw RecordException.Factory("UpdatTextureSet", txst, e);
+                throw RecordException.Enrich(e, txst);
             }
         }
 

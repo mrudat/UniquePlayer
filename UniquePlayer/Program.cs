@@ -1,5 +1,9 @@
 using Mutagen.Bethesda;
 using Mutagen.Bethesda.FormKeys.SkyrimSE;
+using Mutagen.Bethesda.Plugins;
+using Mutagen.Bethesda.Plugins.Cache;
+using Mutagen.Bethesda.Plugins.Exceptions;
+using Mutagen.Bethesda.Plugins.Order;
 using Mutagen.Bethesda.Skyrim;
 using Mutagen.Bethesda.Synthesis;
 using Noggog;
@@ -21,7 +25,7 @@ namespace UniquePlayer
 
         private readonly ILinkCache<ISkyrimMod, ISkyrimModGetter> LinkCache;
 
-        private readonly LoadOrder<IModListing<ISkyrimModGetter>> LoadOrder;
+        private readonly ILoadOrder<IModListing<ISkyrimModGetter>> LoadOrder;
 
         private readonly IFileSystem _fileSystem;
         private readonly System.IO.Abstractions.IPath Path;
@@ -112,12 +116,12 @@ namespace UniquePlayer
 
             var victimRaceFormKeys = playableRaceFormLinks.Select(x => x.FormKey.AsLinkGetter<IRaceGetter>()).Concat(playableVampireRaceFormLinks.Select(x => x.FormKey.AsLinkGetter<IRaceGetter>())).ToHashSet();
 
-            var otherFormLists =
+            var otherFormLists = (
                 from x in LoadOrder.PriorityOrder.WinningOverrides<IFormListGetter>()
                 where !x.Equals(RaceCompatibility.FormList.PlayableRaceList)
                 && !x.Equals(RaceCompatibility.FormList.PlayableVampireList)
                 && x.ContainedFormLinks.Any(y => victimRaceFormKeys.Contains(y.FormKey.AsLink<IRaceGetter>()))
-                select PatchMod.FormLists.GetOrAddAsOverride(x);
+                select PatchMod.FormLists.GetOrAddAsOverride(x)).ToList();
 
             var modifiedPlayableRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableRaceFormList);
             var modifiedPlayableVampireRaceFormList = PatchMod.FormLists.GetOrAddAsOverride(playableVampireRaceFormList);
@@ -132,7 +136,7 @@ namespace UniquePlayer
                 var vampireRace = vampireRaceLink.Resolve(LinkCache);
 
                 if (!race.Flags.HasFlag(Race.Flag.Playable))
-                    throw RecordException.Factory(new Exception("Race in PlayableRaceList was not playable"), race);
+                    throw RecordException.Create("Race in PlayableRaceList was not playable", race);
 
                 var newRace = CopyRace(race, texturesPath, meshesPath);
 
@@ -203,12 +207,13 @@ namespace UniquePlayer
                 if (needsEdit)
                 {
                     var newArmorAddon = PatchMod.ArmorAddons.AddNew($"{armorAddon.EditorID}_UniquePlayer");
-                    newArmorAddon.DeepCopyIn(armorAddon, new ArmorAddon.TranslationMask(defaultOn: true)
+                    newArmorAddon.DeepCopyIn(armorAddon, out var ex, new ArmorAddon.TranslationMask(defaultOn: true)
                     {
                         EditorID = false,
                         Race = false,
                         AdditionalRaces = false
                     });
+                    if (ex.Overall is Exception e) throw e;
                     newArmorAddon.Race.SetTo(replacementRaces.First());
                     replacementRaces.Skip(1).ForEach(x => newArmorAddon.AdditionalRaces.Add(x));
 
@@ -258,11 +263,12 @@ namespace UniquePlayer
         public Race CopyRace(IRaceGetter oldRace, string texturesPath, string meshesPath)
         {
             var newRace = PatchMod.Races.AddNew($"{oldRace.EditorID}_UniquePlayer");
-            newRace.DeepCopyIn(oldRace, new Race.TranslationMask(defaultOn: true)
+            newRace.DeepCopyIn(oldRace, out var ex, new Race.TranslationMask(defaultOn: true)
             {
                 EditorID = false,
                 ArmorRace = false
             });
+            if (ex.Overall is Exception e) throw e;
             newRace.MorphRace.SetTo(oldRace);
             replacementPlayableRacesDict.Add(oldRace.FormKey, newRace.FormKey);
 
