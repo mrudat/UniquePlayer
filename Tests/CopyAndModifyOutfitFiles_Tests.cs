@@ -146,7 +146,7 @@ namespace Tests
                 .Should().HaveRoot("SliderSetInfo")
                 .Which.Should().HaveAttribute("version", "1")
                 .And.HaveElement("SliderSet")
-                .Which.Should().HaveAttribute("name", "originalOutfit (unknown) (Unique Player)")
+                .Which.Should().HaveAttribute("name", "originalOutfit (Unique Player)")
                 .And.HaveElement("OutputPath")
                 .Which.Should().HaveValue(Path.Join("Meshes", "Player", "originalOutfit"));
         }

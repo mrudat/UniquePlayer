@@ -30,14 +30,6 @@ namespace UniquePlayer
             BodySlideInstallPath = bodySlidePath ?? Path.Join(dataFolderPath, "CalienteTools", "BodySlide");
         }
 
-        private static readonly Dictionary<string, string> BodyReferenceToBodyName = new()
-        {
-            { "CBBE Hands", "CBBE" },
-            { "CBBE Body", "CBBE" },
-            { "CBBE Feet", "CBBE" },
-            { "TBD - Reference - Default Body", "TBD" },
-        };
-
         XDocument? TryLoad(string path)
         {
             try
@@ -89,22 +81,8 @@ namespace UniquePlayer
             var sliderSetInfo = new XElement("SliderSetInfo", new XAttribute("version", "1"));
             outfitsDoc.Add(sliderSetInfo);
 
-            Dictionary<string, HashSet<string>> uniquePlayerOutfits = new();
-
-            var bodyNameToSliderNameSets = new Dictionary<string, ImmutableHashSet<string>>();
-
-            foreach (var (outfitName, bodyName) in BodyReferenceToBodyName)
-            {
-                if (!outfitsData.TryGetValue(outfitName, out var outfitData)) continue;
-
-                bodyNameToSliderNameSets[bodyName] = outfitData
-                    .Elements("Slider")
-                    .Select(e => e.GetAttribute("name"))
-                    .NotNull()
-                    .ToImmutableHashSet();
-            }
-
-            var outfitNameToBodyName = new Dictionary<string, string>();
+            var originalOutfits = new HashSet<string>();
+            var newOutfits = new HashSet<string>();
 
             foreach (var (oldOutfitName, outfitData) in outfitsData)
             {
@@ -112,57 +90,17 @@ namespace UniquePlayer
                 if (outfitPathElement is null) continue;
                 outfitPathElement.Value = MeshPaths.MangleMeshesPath(outfitPathElement.Value, "Player", out _);
 
-                if (!BodyReferenceToBodyName.TryGetValue(oldOutfitName, out var bodyName))
-                {
-                    var sliderNames = outfitData
-                        .Elements("Slider")
-                        .Select(e => e.GetAttribute("name"))
-                        .NotNull()
-                        .ToImmutableHashSet();
+                originalOutfits.Add(oldOutfitName);
 
-                    var highestCount = 0;
-                    bodyName = "unknown";
+                var newOutfitName = oldOutfitName + " (Unique Player)";
 
-                    foreach (var (candidateBodyName, candidateSliderNames) in bodyNameToSliderNameSets)
-                    {
-                        var matchCount = sliderNames.CountIntersect(candidateSliderNames);
-
-                        if (matchCount > highestCount)
-                        {
-                            highestCount = matchCount;
-                            bodyName = candidateBodyName;
-                        }
-                    }
-                }
-
-                var hasSMP = outfitData
-                    .Elements("Shape")?
-                    .Select(x => x.GetAttribute("target"))
-                    .NotNull()
-                    .Any(x => x.StartsWith("Virtual")) == true;
-
-                var bodyNamePlusSMP = bodyName;
-
-                if (hasSMP)
-                    bodyNamePlusSMP += "-SMP";
-
-                outfitNameToBodyName[oldOutfitName] = bodyNamePlusSMP;
-
-                var newOutfitName = oldOutfitName;
-                if (!oldOutfitName.Contains(bodyName))
-                    newOutfitName += $" ({bodyName})";
-                if (hasSMP && !oldOutfitName.Contains("SMP"))
-                    newOutfitName += $" (SMP)";
-                newOutfitName += " (Unique Player)";
+                newOutfits.Add(newOutfitName);
 
                 outfitData.Attribute("name")!.Value = newOutfitName;
 
                 sliderSetInfo.Add(outfitData);
-                oldToNewOutfitNames[oldOutfitName] = newOutfitName;
 
-                if (!uniquePlayerOutfits.TryGetValue(bodyNamePlusSMP, out var uniquePlayerOutfitsForBodyName))
-                    uniquePlayerOutfitsForBodyName = uniquePlayerOutfits[bodyNamePlusSMP] = new();
-                uniquePlayerOutfitsForBodyName.Add(newOutfitName);
+                oldToNewOutfitNames[oldOutfitName] = newOutfitName;
             }
 
             var outfitGroups =
@@ -181,11 +119,10 @@ namespace UniquePlayer
                 where outfitGroupMember is not null
                 let outfitName = outfitGroupMember.GetAttribute("name")
                 where outfitName is not null
-                join rec in outfitNameToBodyName // only includes existing outfit names
+                join rec in oldToNewOutfitNames // only includes existing outfit names
                 on outfitName equals rec.Key
-                let bodyName = rec.Value
-                let newOutfitName = oldToNewOutfitNames[outfitName]
-                group newOutfitName by (outfitGroupName, bodyName);
+                let newOutfitName = rec.Value
+                group newOutfitName by outfitGroupName;
 
             var sliderGroupDoc = new XDocument();
             var sliderGroups = new XElement("SliderGroups");
@@ -205,23 +142,15 @@ namespace UniquePlayer
 
             foreach (var item in outfitGroups)
             {
-                var (outfitGroupName, bodyName) = item.Key;
+                var outfitGroupName = item.Key;
 
-                if (!outfitGroupName.Contains(bodyName))
-                    outfitGroupName += $" ({bodyName})";
                 outfitGroupName += " (Unique Player)";
 
                 sliderGroups.Add(MakeSliderGroup(item, outfitGroupName));
             }
 
-            foreach (var item in (from item in outfitNameToBodyName
-                                  group item.Key by item.Value))
-            {
-                sliderGroups.Add(MakeSliderGroup(item, $"Original ({item.Key})"));
-            }
-
-            foreach (var (bodyName, uniquePlayerOutfitsForBodyName) in uniquePlayerOutfits)
-                sliderGroups.Add(MakeSliderGroup(uniquePlayerOutfitsForBodyName, $"Unique Player ({bodyName})"));
+            sliderGroups.Add(MakeSliderGroup(originalOutfits, "Original"));
+            sliderGroups.Add(MakeSliderGroup(newOutfits, "Unique Player"));
 
             void SaveDoc(string path, string file, XDocument doc) => doc.Save(File.OpenWrite(Path.Join(path, file)));
 
