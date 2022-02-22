@@ -31,7 +31,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: "TODO to Issue"
-      uses: alstr/todo-to-issue-action@v4.6.1
+      uses: alstr/todo-to-issue-action@v4.6.2
       id: "todo"
       with:
         COMMENT_MARKER: "//"
