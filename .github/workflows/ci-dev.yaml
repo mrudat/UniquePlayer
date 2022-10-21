@@ -61,7 +61,7 @@ jobs:
     - name: Test
       run: dotnet test --collect:"XPlat Code Coverage" --settings coverlet.runsettings -c Release --no-build
     - name: Publish code coverage
-      uses: paambaati/codeclimate-action@v3.1.0
+      uses: paambaati/codeclimate-action@v3.2.0
       env:
         CC_TEST_REPORTER_ID: ${{secrets.CC_TEST_REPORTER_ID}}
       with:
